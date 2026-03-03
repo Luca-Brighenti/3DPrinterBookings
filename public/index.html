@@ -1,0 +1,559 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MECH PrintLab — 3D Printer Booking</title>
+<link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Exo+2:wght@300;400;600;700;900&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0a0b0e;
+    --surface: #111318;
+    --surface2: #191d26;
+    --border: #252a35;
+    --orange: #ff6b1a;
+    --orange-dim: #7a3010;
+    --orange-glow: rgba(255,107,26,0.15);
+    --green: #2dff7f;
+    --green-dim: #0a3a1e;
+    --red: #ff3b5c;
+    --red-dim: #3a0a14;
+    --blue: #3b82f6;
+    --text: #e8eaf0;
+    --text-dim: #6b7280;
+    --mono: 'Share Tech Mono', monospace;
+    --sans: 'Exo 2', sans-serif;
+  }
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body { background:var(--bg); color:var(--text); font-family:var(--sans); min-height:100vh; overflow-x:hidden; }
+  body::before { content:''; position:fixed; top:0;left:0;right:0;bottom:0; background:repeating-linear-gradient(0deg,transparent,transparent 2px,rgba(0,0,0,0.03) 2px,rgba(0,0,0,0.03) 4px); pointer-events:none; z-index:9999; }
+
+  header { background:var(--surface); border-bottom:1px solid var(--border); padding:0 2rem; display:flex; align-items:center; justify-content:space-between; height:64px; position:sticky; top:0; z-index:100; }
+  .logo { display:flex; align-items:center; gap:12px; }
+  .logo-icon { width:36px; height:36px; }
+  .logo-icon svg { width:100%; height:100%; }
+  .logo-text { font-weight:900; font-size:1.3rem; letter-spacing:0.05em; text-transform:uppercase; }
+  .logo-text span { color:var(--orange); }
+  .header-right { display:flex; align-items:center; gap:1.5rem; }
+  .status-pill { font-family:var(--mono); font-size:0.7rem; padding:4px 10px; border-radius:2px; background:var(--green-dim); color:var(--green); border:1px solid rgba(45,255,127,0.2); letter-spacing:0.1em; }
+  .clock { font-family:var(--mono); font-size:0.85rem; color:var(--text-dim); letter-spacing:0.1em; }
+
+  main { display:grid; grid-template-columns:1fr 400px; gap:0; min-height:calc(100vh - 64px); }
+
+  .printers-panel { padding:2rem; border-right:1px solid var(--border); }
+  .panel-header { display:flex; align-items:baseline; justify-content:space-between; margin-bottom:1.5rem; }
+  .panel-title { font-size:0.65rem; font-family:var(--mono); letter-spacing:0.2em; text-transform:uppercase; color:var(--text-dim); }
+  .printer-count { font-family:var(--mono); font-size:0.7rem; color:var(--orange); }
+
+  .stats-bar { display:flex; gap:1rem; margin-bottom:1.5rem; padding:0.75rem 1rem; background:var(--surface); border:1px solid var(--border); border-radius:4px; flex-wrap:wrap; }
+  .stat { display:flex; align-items:center; gap:0.5rem; }
+  .stat-dot { width:8px; height:8px; border-radius:50%; }
+  .stat-dot.green { background:var(--green); } .stat-dot.red { background:var(--red); } .stat-dot.blue { background:var(--blue); } .stat-dot.orange { background:var(--orange); }
+  .stat-text { font-family:var(--mono); font-size:0.7rem; color:var(--text-dim); }
+  .stat-text strong { color:var(--text); }
+  .divider { width:1px; background:var(--border); margin:0 0.25rem; }
+
+  .printer-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(220px,1fr)); gap:1rem; }
+  .printer-card { background:var(--surface); border:1px solid var(--border); border-radius:4px; padding:1.2rem; cursor:pointer; transition:all 0.2s; position:relative; overflow:hidden; }
+  .printer-card::before { content:''; position:absolute; top:0;left:0;right:0; height:2px; background:var(--orange); transform:scaleX(0); transition:transform 0.2s; transform-origin:left; }
+  .printer-card:hover::before, .printer-card.selected::before { transform:scaleX(1); }
+  .printer-card:hover { border-color:var(--orange-dim); background:var(--surface2); transform:translateY(-1px); box-shadow:0 4px 20px rgba(0,0,0,0.3); }
+  .printer-card.selected { border-color:var(--orange); background:var(--surface2); box-shadow:0 0 0 1px var(--orange),0 4px 20px var(--orange-glow); }
+  .printer-card.maint { opacity:0.6; cursor:not-allowed; }
+  .printer-card.maint:hover { transform:none; border-color:var(--border); background:var(--surface); box-shadow:none; }
+  .printer-card.maint::before { background:var(--blue); transform:scaleX(1); }
+  .printer-card-top { display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:0.9rem; }
+  .printer-number { font-family:var(--mono); font-size:1rem; font-weight:700; color:var(--orange); line-height:1; letter-spacing:0.05em; }
+
+  .printer-status-badge { font-family:var(--mono); font-size:0.6rem; letter-spacing:0.1em; padding:3px 7px; border-radius:2px; text-transform:uppercase; }
+  .badge-ready { background:var(--green-dim); color:var(--green); border:1px solid rgba(45,255,127,0.2); }
+  .badge-queued { background:var(--orange-glow); color:var(--orange); border:1px solid rgba(255,107,26,0.3); }
+  .badge-maint { background:rgba(59,130,246,0.1); color:var(--blue); border:1px solid rgba(59,130,246,0.2); }
+
+  .printer-name { font-size:0.8rem; font-weight:600; margin-bottom:0.3rem; }
+  .printer-spec { font-family:var(--mono); font-size:0.65rem; color:var(--text-dim); margin-bottom:0.8rem; }
+  .printer-info { font-family:var(--mono); font-size:0.65rem; color:var(--text-dim); padding-top:0.5rem; border-top:1px solid var(--border); }
+  .printer-info.has-queue { color:var(--orange); }
+
+  .booking-panel { background:var(--surface); padding:2rem; display:flex; flex-direction:column; overflow-y:auto; max-height:calc(100vh - 64px); }
+  .booking-panel-header { margin-bottom:1.5rem; }
+  .section-label { font-family:var(--mono); font-size:0.65rem; letter-spacing:0.2em; text-transform:uppercase; color:var(--text-dim); margin-bottom:0.5rem; }
+  .section-title { font-size:1.3rem; font-weight:700; }
+
+  .selected-printer-display { background:var(--surface2); border:1px solid var(--border); border-radius:4px; padding:1rem; margin-bottom:1.5rem; display:flex; align-items:center; gap:1rem; }
+  .selected-printer-num { font-family:var(--mono); font-size:1.1rem; font-weight:700; color:var(--orange); min-width:90px; letter-spacing:0.05em; }
+  .selected-printer-details { flex:1; }
+  .selected-printer-name { font-weight:600; font-size:0.9rem; margin-bottom:2px; }
+  .selected-printer-spec { font-family:var(--mono); font-size:0.65rem; color:var(--text-dim); }
+
+  .no-selection { background:var(--surface2); border:1px dashed var(--border); border-radius:4px; padding:2rem; text-align:center; margin-bottom:1.5rem; color:var(--text-dim); font-size:0.85rem; }
+  .no-selection-icon { font-size:2rem; margin-bottom:0.5rem; opacity:0.3; }
+
+  .form-group { margin-bottom:1rem; }
+  .form-label { font-family:var(--mono); font-size:0.65rem; letter-spacing:0.15em; text-transform:uppercase; color:var(--text-dim); margin-bottom:0.4rem; display:block; }
+  .form-input, .form-select, .form-textarea { width:100%; background:var(--surface2); border:1px solid var(--border); border-radius:3px; color:var(--text); font-family:var(--sans); font-size:0.9rem; padding:0.6rem 0.8rem; outline:none; transition:border-color 0.2s,box-shadow 0.2s; -webkit-appearance:none; }
+  .form-input:focus, .form-select:focus, .form-textarea:focus { border-color:var(--orange); box-shadow:0 0 0 2px var(--orange-glow); }
+  .form-select option { background:var(--surface2); }
+  .form-textarea { resize:vertical; min-height:60px; font-size:0.85rem; }
+  .form-row { display:grid; grid-template-columns:1fr 1fr; gap:0.8rem; }
+
+  .file-upload { position:relative; }
+  .file-upload input[type="file"] { position:absolute; inset:0; opacity:0; cursor:pointer; }
+  .file-upload-label { display:flex; align-items:center; gap:0.75rem; background:var(--surface2); border:1px dashed var(--border); border-radius:3px; padding:0.8rem 1rem; color:var(--text-dim); font-size:0.8rem; transition:all 0.15s; }
+  .file-upload-label:hover { border-color:var(--orange-dim); color:var(--text); }
+  .file-upload-label.has-file { border-color:var(--green); border-style:solid; color:var(--green); }
+  .file-upload-icon { font-size:1.2rem; }
+  .file-hint { font-family:var(--mono); font-size:0.6rem; color:var(--text-dim); margin-top:0.3rem; }
+
+  .duration-grid { display:grid; grid-template-columns:repeat(4,1fr); gap:0.5rem; }
+  .duration-btn { background:var(--surface2); border:1px solid var(--border); border-radius:3px; color:var(--text-dim); font-family:var(--mono); font-size:0.7rem; padding:0.5rem; cursor:pointer; text-align:center; transition:all 0.15s; }
+  .duration-btn:hover { border-color:var(--orange-dim); color:var(--text); }
+  .duration-btn.active { background:var(--orange-glow); border-color:var(--orange); color:var(--orange); }
+
+  .submit-btn { width:100%; background:var(--orange); color:#000; border:none; border-radius:3px; font-family:var(--sans); font-size:0.9rem; font-weight:700; letter-spacing:0.05em; text-transform:uppercase; padding:0.9rem; cursor:pointer; transition:all 0.2s; position:relative; overflow:hidden; }
+  .submit-btn:hover:not(:disabled) { background:#ff8540; box-shadow:0 4px 20px rgba(255,107,26,0.4); transform:translateY(-1px); }
+  .submit-btn:disabled { opacity:0.3; cursor:not-allowed; }
+
+  .queue-section { margin-top:1.5rem; padding-top:1.5rem; border-top:1px solid var(--border); flex:1; display:flex; flex-direction:column; }
+  .queue-list { flex:1; overflow-y:auto; max-height:300px; display:flex; flex-direction:column; gap:0.5rem; }
+  .queue-list::-webkit-scrollbar { width:4px; }
+  .queue-list::-webkit-scrollbar-track { background:var(--surface2); }
+  .queue-list::-webkit-scrollbar-thumb { background:var(--border); border-radius:2px; }
+
+  .queue-item { background:var(--surface2); border:1px solid var(--border); border-radius:3px; padding:0.75rem; display:flex; align-items:center; gap:0.75rem; animation:slideIn 0.3s ease; }
+  @keyframes slideIn { from{opacity:0;transform:translateX(10px)} to{opacity:1;transform:translateX(0)} }
+  .queue-pos { font-family:var(--mono); font-size:0.65rem; color:var(--text-dim); min-width:20px; }
+  .queue-printer { font-family:var(--mono); font-size:0.75rem; color:var(--orange); min-width:72px; }
+  .queue-details { flex:1; min-width:0; }
+  .queue-team { font-size:0.8rem; font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .queue-meta { font-family:var(--mono); font-size:0.6rem; color:var(--text-dim); margin-top:1px; }
+
+  .empty-msg { text-align:center; padding:2rem; color:var(--text-dim); font-size:0.8rem; font-family:var(--mono); }
+
+  .toast { position:fixed; bottom:2rem; left:50%; transform:translateX(-50%) translateY(20px); background:var(--green-dim); border:1px solid rgba(45,255,127,0.3); color:var(--green); font-family:var(--mono); font-size:0.8rem; padding:0.75rem 1.5rem; border-radius:3px; opacity:0; transition:all 0.3s; pointer-events:none; z-index:9000; white-space:nowrap; }
+  .toast.show { opacity:1; transform:translateX(-50%) translateY(0); }
+  .toast.error { background:var(--red-dim); border-color:rgba(255,59,92,0.3); color:var(--red); }
+
+  @media (max-width:900px) {
+    main { grid-template-columns:1fr; }
+    .booking-panel { border-top:1px solid var(--border); max-height:none; }
+    .printers-panel { padding:1.5rem; }
+    .booking-panel { padding:1.5rem; }
+  }
+
+  @media (max-width:600px) {
+    header { padding:0 1rem; height:56px; }
+    .logo-text { font-size:1.1rem; }
+    .status-pill { display:none; }
+    .clock { font-size:0.75rem; }
+
+    main { min-height:auto; }
+    .printers-panel { padding:1rem; }
+    .booking-panel { padding:1rem; }
+
+    .stats-bar { gap:0.6rem; padding:0.6rem 0.75rem; }
+    .divider { display:none; }
+    .stat-text { font-size:0.6rem; }
+
+    .printer-grid { grid-template-columns:repeat(auto-fill,minmax(150px,1fr)); gap:0.75rem; }
+    .printer-card { padding:0.9rem; }
+    .printer-number { font-size:0.85rem; }
+    .printer-status-badge { font-size:0.5rem; padding:2px 5px; }
+    .printer-name { font-size:0.75rem; }
+    .printer-spec { font-size:0.6rem; margin-bottom:0.5rem; }
+
+    .section-title { font-size:1.1rem; }
+
+    .selected-printer-display { flex-direction:column; align-items:flex-start; gap:0.5rem; padding:0.8rem; }
+    .selected-printer-num { min-width:auto; }
+
+    .form-row { grid-template-columns:1fr; gap:0.5rem; }
+    .form-input, .form-select { font-size:0.85rem; padding:0.5rem 0.7rem; }
+
+    .duration-grid { grid-template-columns:repeat(4,1fr); gap:0.4rem; }
+    .duration-btn { padding:0.4rem 0.2rem; font-size:0.65rem; }
+
+    .file-upload-label { padding:0.6rem 0.8rem; font-size:0.75rem; }
+
+    .submit-btn { font-size:0.85rem; padding:0.8rem; }
+
+    .queue-item { padding:0.6rem; gap:0.5rem; }
+    .queue-printer { min-width:60px; font-size:0.65rem; }
+    .queue-team { font-size:0.75rem; }
+    .queue-meta { font-size:0.55rem; }
+
+    .toast { font-size:0.7rem; padding:0.6rem 1rem; max-width:90vw; white-space:normal; text-align:center; }
+  }
+
+  @media (max-width:380px) {
+    .printer-grid { grid-template-columns:1fr; }
+    .queue-printer { min-width:50px; font-size:0.6rem; }
+  }
+</style>
+</head>
+<body>
+<header>
+  <div class="logo">
+    <div class="logo-icon">
+      <svg viewBox="0 0 36 36" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <rect x="4" y="20" width="28" height="3" fill="#ff6b1a"/>
+        <rect x="8" y="14" width="20" height="7" fill="#191d26" stroke="#ff6b1a" stroke-width="1"/>
+        <rect x="14" y="23" width="8" height="8" fill="#111318" stroke="#252a35" stroke-width="1"/>
+        <circle cx="18" cy="17" r="3" fill="#ff6b1a" opacity="0.6"/>
+        <rect x="16" y="4" width="4" height="11" fill="#ff6b1a" opacity="0.4"/>
+      </svg>
+    </div>
+    <div class="logo-text">MECH <span>PrintLab</span></div>
+  </div>
+  <div class="header-right">
+    <div class="status-pill">● SYSTEM ONLINE</div>
+    <div class="clock" id="clock">--:--:--</div>
+  </div>
+</header>
+
+<main>
+  <div class="printers-panel">
+    <div class="panel-header">
+      <div class="panel-title">// Printer Fleet</div>
+      <div class="printer-count" id="availableCount">— available</div>
+    </div>
+    <div class="stats-bar">
+      <div class="stat"><div class="stat-dot green"></div><div class="stat-text"><strong id="stat-ready">0</strong> Ready</div></div>
+      <div class="divider"></div>
+      <div class="stat"><div class="stat-dot orange"></div><div class="stat-text"><strong id="stat-queued">0</strong> Queued Prints</div></div>
+      <div class="divider"></div>
+      <div class="stat"><div class="stat-dot blue"></div><div class="stat-text"><strong id="stat-maint">0</strong> Maintenance</div></div>
+    </div>
+    <div class="printer-grid" id="printerGrid"><div class="empty-msg" style="grid-column:1/-1">Loading printers...</div></div>
+  </div>
+
+  <div class="booking-panel">
+    <div class="booking-panel-header">
+      <div class="section-label">// New Booking</div>
+      <div class="section-title">Join a Printer Queue</div>
+    </div>
+
+    <div id="selectedDisplay">
+      <div class="no-selection"><div class="no-selection-icon">🖨️</div>Select a printer to join its queue</div>
+    </div>
+
+    <div class="form-row" style="margin-bottom:1rem">
+      <div class="form-group" style="margin-bottom:0">
+        <label class="form-label">Course</label>
+        <select class="form-select" id="courseStream">
+          <option value="">— Select —</option>
+          <option value="Morphing Wing">Morphing Wing</option>
+        </select>
+      </div>
+      <div class="form-group" style="margin-bottom:0">
+        <label class="form-label">Timetable Stream</label>
+        <input class="form-input" id="timetableStream" type="text" placeholder="e.g. 1A" autocomplete="off">
+      </div>
+    </div>
+
+    <div class="form-group">
+      <label class="form-label">Team / Group</label>
+      <input class="form-input" id="team" type="text" placeholder="e.g. F" autocomplete="off">
+    </div>
+
+    <div class="form-group">
+      <label class="form-label">Project Name</label>
+      <input class="form-input" id="projectName" type="text" placeholder="e.g. bracket_v2" autocomplete="off">
+    </div>
+
+    <div class="form-group">
+      <label class="form-label">Print File</label>
+      <div class="file-upload">
+        <div class="file-upload-label" id="fileLabel">
+          <span class="file-upload-icon">📁</span>
+          <span id="fileName">Choose a file to upload...</span>
+        </div>
+        <input type="file" id="fileInput" accept=".3mf,.stl,.obj,.step,.stp,.gcode" onchange="updateFileName()">
+      </div>
+      <div class="file-hint">.3mf recommended — also accepts .stl, .obj, .step, .gcode</div>
+    </div>
+
+    <div class="form-row" style="margin-bottom:1rem">
+      <div class="form-group" style="margin-bottom:0">
+        <label class="form-label">Material</label>
+        <select class="form-select" id="material">
+          <option value="PLA">PLA</option>
+          <option value="PETG">PETG</option>
+        </select>
+      </div>
+      <div class="form-group" style="margin-bottom:0">
+        <label class="form-label">Estimated Duration</label>
+        <div class="duration-grid">
+          <div class="duration-btn" data-hours="0.5" onclick="selectDuration(this)">30m</div>
+          <div class="duration-btn active" data-hours="1" onclick="selectDuration(this)">1h</div>
+          <div class="duration-btn" data-hours="1.5" onclick="selectDuration(this)">1.5h</div>
+          <div class="duration-btn" data-hours="2" onclick="selectDuration(this)">2h</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="form-group">
+      <label class="form-label">Notes (optional)</label>
+      <textarea class="form-textarea" id="notes" placeholder="Any special requirements..."></textarea>
+    </div>
+
+    <button class="submit-btn" id="bookBtn" onclick="submitBooking()" disabled>Join Queue</button>
+
+    <div class="queue-section">
+      <div class="panel-header" style="margin-bottom:0.75rem">
+        <div class="panel-title">// Print Queue</div>
+        <div class="printer-count" id="queueCount">0 prints</div>
+      </div>
+      <div class="queue-list" id="queueList"><div class="empty-msg">Queue is empty</div></div>
+    </div>
+  </div>
+</main>
+
+<div class="toast" id="toast"></div>
+
+<script>
+let printers = [];
+let bookings = [];
+let selectedPrinter = null;
+let selectedDuration = 1;
+
+async function init() {
+  await Promise.all([loadPrinters(), loadBookings()]);
+  updateClock();
+  setInterval(updateClock, 1000);
+  setInterval(refresh, 30000);
+}
+
+async function loadPrinters() {
+  try {
+    const res = await fetch('/api/printers');
+    if (!res.ok) throw new Error('Server error');
+    printers = await res.json();
+    renderPrinters();
+  } catch (err) {
+    console.error('Failed to load printers:', err);
+  }
+}
+
+async function loadBookings() {
+  try {
+    const res = await fetch('/api/bookings');
+    if (!res.ok) throw new Error('Server error');
+    bookings = await res.json();
+    renderQueue();
+  } catch (err) {
+    console.error('Failed to load bookings:', err);
+  }
+}
+
+async function refresh() {
+  await Promise.all([loadPrinters(), loadBookings()]);
+  if (selectedPrinter) {
+    const p = printers.find(pr => pr.id === selectedPrinter);
+    if (!p || p.status === 'maintenance') {
+      selectedPrinter = null;
+      updateSelectedDisplay();
+      updateBookBtn();
+      showToast('Selected printer is no longer available', true);
+    }
+  }
+}
+
+function updateClock() {
+  document.getElementById('clock').textContent = new Date().toLocaleTimeString('en-AU', {hour12: false});
+}
+
+function renderPrinters() {
+  const grid = document.getElementById('printerGrid');
+  grid.innerHTML = printers.map(p => {
+    const isSelected = selectedPrinter === p.id;
+    const isMaint = p.status === 'maintenance';
+    const q = p.queue_count;
+
+    let badgeHtml, infoHtml;
+    if (isMaint) {
+      badgeHtml = '<span class="printer-status-badge badge-maint">MAINT.</span>';
+      infoHtml = '<div class="printer-info">Scheduled maintenance</div>';
+    } else if (q > 0) {
+      badgeHtml = '<span class="printer-status-badge badge-queued">' + q + ' IN QUEUE</span>';
+      const printerBookings = bookings.filter(b => b.printer_id === p.id);
+      const first = printerBookings[0];
+      infoHtml = '<div class="printer-info has-queue">' +
+        (first ? '▶ ' + esc(first.team) : q + ' print' + (q > 1 ? 's' : '') + ' queued') +
+        '</div>';
+    } else {
+      badgeHtml = '<span class="printer-status-badge badge-ready">READY</span>';
+      infoHtml = '<div class="printer-info">Click to select — no queue</div>';
+    }
+
+    return '<div class="printer-card' + (isMaint ? ' maint' : '') + (isSelected ? ' selected' : '') + '"' +
+      ' onclick="' + (isMaint ? '' : 'selectPrinter(' + p.id + ')') + '">' +
+      '<div class="printer-card-top"><div class="printer-number">' + esc(p.label) + '</div>' + badgeHtml + '</div>' +
+      '<div class="printer-name">' + esc(p.name) + '</div>' +
+      '<div class="printer-spec">' + esc(p.spec) + '</div>' +
+      infoHtml + '</div>';
+  }).join('');
+
+  updateStats();
+}
+
+function updateStats() {
+  const ready = printers.filter(p => p.status !== 'maintenance' && p.queue_count === 0).length;
+  const totalQueued = printers.reduce((s, p) => s + p.queue_count, 0);
+  const maint = printers.filter(p => p.status === 'maintenance').length;
+
+  document.getElementById('availableCount').textContent = ready + ' ready';
+  document.getElementById('stat-ready').textContent = ready;
+  document.getElementById('stat-queued').textContent = totalQueued;
+  document.getElementById('stat-maint').textContent = maint;
+}
+
+function selectPrinter(id) {
+  const p = printers.find(pr => pr.id === id);
+  if (!p || p.status === 'maintenance') return;
+  selectedPrinter = (selectedPrinter === id) ? null : id;
+  renderPrinters();
+  updateSelectedDisplay();
+  updateBookBtn();
+}
+
+function updateSelectedDisplay() {
+  const el = document.getElementById('selectedDisplay');
+  if (!selectedPrinter) {
+    el.innerHTML = '<div class="no-selection"><div class="no-selection-icon">🖨️</div>Select a printer to join its queue</div>';
+    return;
+  }
+  const p = printers.find(pr => pr.id === selectedPrinter);
+  const queueMsg = p.queue_count > 0 ? ' · ' + p.queue_count + ' already in queue' : ' · No queue';
+  el.innerHTML = '<div class="selected-printer-display">' +
+    '<div class="selected-printer-num">' + esc(p.label) + '</div>' +
+    '<div class="selected-printer-details"><div class="selected-printer-name">' + esc(p.name) + '</div>' +
+    '<div class="selected-printer-spec">' + esc(p.spec) + queueMsg + '</div></div>' +
+    '<span class="printer-status-badge badge-ready">SELECTED</span></div>';
+}
+
+function selectDuration(el) {
+  document.querySelectorAll('.duration-btn').forEach(b => b.classList.remove('active'));
+  el.classList.add('active');
+  selectedDuration = parseFloat(el.dataset.hours);
+}
+
+function updateFileName() {
+  const input = document.getElementById('fileInput');
+  const label = document.getElementById('fileLabel');
+  const nameEl = document.getElementById('fileName');
+  if (input.files.length > 0) {
+    const f = input.files[0];
+    const sizeMB = (f.size / 1024 / 1024).toFixed(1);
+    nameEl.textContent = f.name + ' (' + sizeMB + ' MB)';
+    label.classList.add('has-file');
+  } else {
+    nameEl.textContent = 'Choose a file to upload...';
+    label.classList.remove('has-file');
+  }
+}
+
+function updateBookBtn() {
+  document.getElementById('bookBtn').disabled = !selectedPrinter;
+}
+
+async function submitBooking() {
+  const courseStream = document.getElementById('courseStream').value;
+  const timetableStream = document.getElementById('timetableStream').value.trim();
+  const team = document.getElementById('team').value.trim();
+  const project = document.getElementById('projectName').value.trim();
+  const material = document.getElementById('material').value;
+  const notes = document.getElementById('notes').value.trim();
+  const fileInput = document.getElementById('fileInput');
+
+  if (!courseStream) { showToast('Select a course', true); return; }
+  if (!timetableStream) { showToast('Enter a timetable stream', true); return; }
+  if (!team) { showToast('Enter a team / group name', true); return; }
+  if (!project) { showToast('Enter a project name', true); return; }
+  if (!fileInput.files.length) { showToast('Upload a print file (.3mf recommended)', true); return; }
+  if (!selectedPrinter) { showToast('Select a printer first', true); return; }
+
+  const btn = document.getElementById('bookBtn');
+  btn.disabled = true;
+  btn.textContent = 'Uploading...';
+
+  const fd = new FormData();
+  fd.append('printerId', selectedPrinter);
+  fd.append('courseStream', courseStream);
+  fd.append('timetableStream', timetableStream);
+  fd.append('team', team);
+  fd.append('project', project);
+  fd.append('file', fileInput.files[0]);
+  fd.append('material', material);
+  fd.append('duration', selectedDuration);
+  if (notes) fd.append('notes', notes);
+
+  try {
+    const res = await fetch('/api/bookings', { method: 'POST', body: fd });
+    if (!res.ok) {
+      const err = await res.json();
+      showToast(err.error || 'Booking failed', true);
+      btn.disabled = false;
+      btn.textContent = 'Join Queue';
+      return;
+    }
+
+    const booking = await res.json();
+    document.getElementById('courseStream').value = '';
+    document.getElementById('timetableStream').value = '';
+    document.getElementById('team').value = '';
+    document.getElementById('projectName').value = '';
+    document.getElementById('notes').value = '';
+    fileInput.value = '';
+    updateFileName();
+    selectedPrinter = null;
+
+    await refresh();
+    updateSelectedDisplay();
+    updateBookBtn();
+    showToast('✓ Added to queue for ' + (booking.printer_label || 'printer'));
+  } catch (err) {
+    console.error('Booking error:', err);
+    showToast('Network error — try again', true);
+  }
+  btn.disabled = !selectedPrinter;
+  btn.textContent = 'Join Queue';
+}
+
+function renderQueue() {
+  const list = document.getElementById('queueList');
+  const count = document.getElementById('queueCount');
+  count.textContent = bookings.length + ' print' + (bookings.length !== 1 ? 's' : '');
+
+  if (bookings.length === 0) {
+    list.innerHTML = '<div class="empty-msg">Queue is empty</div>';
+    return;
+  }
+
+  list.innerHTML = bookings.map(b => {
+    const dur = b.duration === 0.5 ? '30m' : b.duration + 'h';
+    const pos = b.queue_position == 1 ? '▶' : '#' + b.queue_position;
+    return '<div class="queue-item">' +
+      '<div class="queue-pos">' + pos + '</div>' +
+      '<div class="queue-printer">' + esc(b.printer_label) + '</div>' +
+      '<div class="queue-details">' +
+        '<div class="queue-team">' + esc(b.timetable_stream) + ' — ' + esc(b.team) + '</div>' +
+        '<div class="queue-meta">' + esc(b.course_stream) + ' &middot; ' + esc(b.project) + ' &middot; ' + esc(b.material) + ' &middot; ' + dur + '</div>' +
+      '</div>' +
+    '</div>';
+  }).join('');
+}
+
+function esc(s) { if (!s) return ''; const d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
+
+function showToast(msg, isError = false) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.className = 'toast show' + (isError ? ' error' : '');
+  setTimeout(() => { t.className = 'toast'; }, 3000);
+}
+
+init();
+</script>
+</body>
+</html>
