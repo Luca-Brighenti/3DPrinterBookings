@@ -1,0 +1,41 @@
+databases:
+  - name: printlab-db
+    plan: free
+    databaseName: printlab
+    user: printlab_user
+
+services:
+  - type: web
+    name: mech-printlab
+    plan: free
+    runtime: node
+    buildCommand: npm install
+    startCommand: node server.js
+    healthCheckPath: /healthz
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: printlab-db
+          property: connectionString
+      - key: JWT_SECRET
+        generateValue: true
+      - key: ADMIN_PASSWORD
+        value: changeme123
+      - key: NODE_ENV
+        value: production
+      - key: STORAGE_PROVIDER
+        value: local
+      - key: UPLOADS_DIR
+        value: /var/data/printlab/uploads
+      - key: MAX_UPLOAD_MB
+        value: "100"
+      - key: ENABLE_MAINTENANCE_JOBS
+        value: "true"
+      - key: CLEANUP_INTERVAL_MINUTES
+        value: "60"
+      - key: FILE_RETENTION_DAYS
+        value: "45"
+      - key: CLEANUP_BATCH_SIZE
+        value: "200"
+      - key: JSON_LIMIT_KB
+        value: "100"
