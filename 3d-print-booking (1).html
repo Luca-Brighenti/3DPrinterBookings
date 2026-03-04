@@ -1,0 +1,1052 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MECH PrintLab — 3D Printer Booking</title>
+<link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Exo+2:wght@300;400;600;700;900&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0a0b0e;
+    --surface: #111318;
+    --surface2: #191d26;
+    --border: #252a35;
+    --orange: #ff6b1a;
+    --orange-dim: #7a3010;
+    --orange-glow: rgba(255,107,26,0.15);
+    --green: #2dff7f;
+    --green-dim: #0a3a1e;
+    --red: #ff3b5c;
+    --red-dim: #3a0a14;
+    --blue: #3b82f6;
+    --text: #e8eaf0;
+    --text-dim: #6b7280;
+    --mono: 'Share Tech Mono', monospace;
+    --sans: 'Exo 2', sans-serif;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--sans);
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  /* Scanline effect */
+  body::before {
+    content: '';
+    position: fixed;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background: repeating-linear-gradient(
+      0deg,
+      transparent,
+      transparent 2px,
+      rgba(0,0,0,0.03) 2px,
+      rgba(0,0,0,0.03) 4px
+    );
+    pointer-events: none;
+    z-index: 9999;
+  }
+
+  /* Header */
+  header {
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    padding: 0 2rem;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    height: 64px;
+    position: sticky;
+    top: 0;
+    z-index: 100;
+  }
+
+  .logo {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+
+  .logo-icon {
+    width: 36px;
+    height: 36px;
+    position: relative;
+  }
+
+  .logo-icon svg { width: 100%; height: 100%; }
+
+  .logo-text {
+    font-family: var(--sans);
+    font-weight: 900;
+    font-size: 1.3rem;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+  }
+
+  .logo-text span { color: var(--orange); }
+
+  .header-right {
+    display: flex;
+    align-items: center;
+    gap: 1.5rem;
+  }
+
+  .status-pill {
+    font-family: var(--mono);
+    font-size: 0.7rem;
+    padding: 4px 10px;
+    border-radius: 2px;
+    background: var(--green-dim);
+    color: var(--green);
+    border: 1px solid rgba(45,255,127,0.2);
+    letter-spacing: 0.1em;
+  }
+
+  .clock {
+    font-family: var(--mono);
+    font-size: 0.85rem;
+    color: var(--text-dim);
+    letter-spacing: 0.1em;
+  }
+
+  /* Main layout */
+  main {
+    display: grid;
+    grid-template-columns: 1fr 380px;
+    gap: 0;
+    min-height: calc(100vh - 64px);
+  }
+
+  /* Left panel */
+  .printers-panel {
+    padding: 2rem;
+    border-right: 1px solid var(--border);
+  }
+
+  .panel-header {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    margin-bottom: 1.5rem;
+  }
+
+  .panel-title {
+    font-size: 0.65rem;
+    font-family: var(--mono);
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: var(--text-dim);
+  }
+
+  .printer-count {
+    font-family: var(--mono);
+    font-size: 0.7rem;
+    color: var(--orange);
+  }
+
+  /* Printer grid */
+  .printer-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+    gap: 1rem;
+  }
+
+  .printer-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 1.2rem;
+    cursor: pointer;
+    transition: all 0.2s;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .printer-card::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 2px;
+    background: var(--orange);
+    transform: scaleX(0);
+    transition: transform 0.2s;
+    transform-origin: left;
+  }
+
+  .printer-card:hover::before,
+  .printer-card.selected::before {
+    transform: scaleX(1);
+  }
+
+  .printer-card:hover {
+    border-color: var(--orange-dim);
+    background: var(--surface2);
+    transform: translateY(-1px);
+    box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+  }
+
+  .printer-card.selected {
+    border-color: var(--orange);
+    background: var(--surface2);
+    box-shadow: 0 0 0 1px var(--orange), 0 4px 20px var(--orange-glow);
+  }
+
+  .printer-card.busy {
+    opacity: 0.6;
+    cursor: not-allowed;
+  }
+
+  .printer-card.busy:hover {
+    transform: none;
+    border-color: var(--border);
+    background: var(--surface);
+    box-shadow: none;
+  }
+
+  .printer-card.busy::before {
+    background: var(--red);
+    transform: scaleX(1);
+  }
+
+  .printer-card-top {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: 0.9rem;
+  }
+
+  .printer-number {
+    font-family: var(--mono);
+    font-size: 1rem;
+    font-weight: 700;
+    color: var(--orange);
+    line-height: 1;
+    letter-spacing: 0.05em;
+  }
+
+  .printer-status-badge {
+    font-family: var(--mono);
+    font-size: 0.6rem;
+    letter-spacing: 0.1em;
+    padding: 3px 7px;
+    border-radius: 2px;
+    text-transform: uppercase;
+  }
+
+  .badge-available {
+    background: var(--green-dim);
+    color: var(--green);
+    border: 1px solid rgba(45,255,127,0.2);
+  }
+
+  .badge-busy {
+    background: var(--red-dim);
+    color: var(--red);
+    border: 1px solid rgba(255,59,92,0.2);
+  }
+
+  .badge-maintenance {
+    background: rgba(59,130,246,0.1);
+    color: var(--blue);
+    border: 1px solid rgba(59,130,246,0.2);
+  }
+
+  .printer-name {
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: var(--text);
+    margin-bottom: 0.3rem;
+  }
+
+  .printer-spec {
+    font-family: var(--mono);
+    font-size: 0.65rem;
+    color: var(--text-dim);
+    margin-bottom: 0.8rem;
+  }
+
+  .printer-booking-info {
+    font-family: var(--mono);
+    font-size: 0.65rem;
+    color: var(--red);
+    padding-top: 0.5rem;
+    border-top: 1px solid var(--border);
+  }
+
+  .printer-available-info {
+    font-family: var(--mono);
+    font-size: 0.65rem;
+    color: var(--text-dim);
+    padding-top: 0.5rem;
+    border-top: 1px solid var(--border);
+  }
+
+  /* Right panel — booking form */
+  .booking-panel {
+    background: var(--surface);
+    padding: 2rem;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .booking-panel-header {
+    margin-bottom: 2rem;
+  }
+
+  .section-label {
+    font-family: var(--mono);
+    font-size: 0.65rem;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: var(--text-dim);
+    margin-bottom: 0.5rem;
+  }
+
+  .section-title {
+    font-size: 1.3rem;
+    font-weight: 700;
+    color: var(--text);
+  }
+
+  .selected-printer-display {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 1rem;
+    margin-bottom: 1.5rem;
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+  }
+
+  .selected-printer-num {
+    font-family: var(--mono);
+    font-size: 1.1rem;
+    font-weight: 700;
+    color: var(--orange);
+    line-height: 1;
+    min-width: 90px;
+    letter-spacing: 0.05em;
+  }
+
+  .selected-printer-details {
+    flex: 1;
+  }
+
+  .selected-printer-name {
+    font-weight: 600;
+    font-size: 0.9rem;
+    margin-bottom: 2px;
+  }
+
+  .selected-printer-spec {
+    font-family: var(--mono);
+    font-size: 0.65rem;
+    color: var(--text-dim);
+  }
+
+  .no-selection {
+    background: var(--surface2);
+    border: 1px dashed var(--border);
+    border-radius: 4px;
+    padding: 2rem;
+    text-align: center;
+    margin-bottom: 1.5rem;
+    color: var(--text-dim);
+    font-size: 0.85rem;
+  }
+
+  .no-selection-icon {
+    font-size: 2rem;
+    margin-bottom: 0.5rem;
+    opacity: 0.3;
+  }
+
+  /* Form */
+  .form-group {
+    margin-bottom: 1.2rem;
+  }
+
+  .form-label {
+    font-family: var(--mono);
+    font-size: 0.65rem;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    color: var(--text-dim);
+    margin-bottom: 0.4rem;
+    display: block;
+  }
+
+  .form-input, .form-select, .form-textarea {
+    width: 100%;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 3px;
+    color: var(--text);
+    font-family: var(--sans);
+    font-size: 0.9rem;
+    padding: 0.6rem 0.8rem;
+    outline: none;
+    transition: border-color 0.2s, box-shadow 0.2s;
+    -webkit-appearance: none;
+  }
+
+  .form-input:focus, .form-select:focus, .form-textarea:focus {
+    border-color: var(--orange);
+    box-shadow: 0 0 0 2px var(--orange-glow);
+  }
+
+  .form-select option {
+    background: var(--surface2);
+  }
+
+  .form-textarea {
+    resize: vertical;
+    min-height: 80px;
+    font-size: 0.85rem;
+  }
+
+  .form-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0.8rem;
+  }
+
+  /* Duration selector */
+  .duration-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 0.5rem;
+  }
+
+  .duration-btn {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 3px;
+    color: var(--text-dim);
+    font-family: var(--mono);
+    font-size: 0.7rem;
+    padding: 0.5rem;
+    cursor: pointer;
+    text-align: center;
+    transition: all 0.15s;
+  }
+
+  .duration-btn:hover {
+    border-color: var(--orange-dim);
+    color: var(--text);
+  }
+
+  .duration-btn.active {
+    background: var(--orange-glow);
+    border-color: var(--orange);
+    color: var(--orange);
+  }
+
+  /* Submit button */
+  .submit-btn {
+    width: 100%;
+    background: var(--orange);
+    color: #000;
+    border: none;
+    border-radius: 3px;
+    font-family: var(--sans);
+    font-size: 0.9rem;
+    font-weight: 700;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    padding: 0.9rem;
+    cursor: pointer;
+    margin-top: auto;
+    transition: all 0.2s;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .submit-btn:hover:not(:disabled) {
+    background: #ff8540;
+    box-shadow: 0 4px 20px rgba(255,107,26,0.4);
+    transform: translateY(-1px);
+  }
+
+  .submit-btn:disabled {
+    opacity: 0.3;
+    cursor: not-allowed;
+  }
+
+  /* Bookings list */
+  .bookings-section {
+    margin-top: 2rem;
+    padding-top: 2rem;
+    border-top: 1px solid var(--border);
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .bookings-list {
+    flex: 1;
+    overflow-y: auto;
+    max-height: 280px;
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+
+  .bookings-list::-webkit-scrollbar {
+    width: 4px;
+  }
+
+  .bookings-list::-webkit-scrollbar-track {
+    background: var(--surface2);
+  }
+
+  .bookings-list::-webkit-scrollbar-thumb {
+    background: var(--border);
+    border-radius: 2px;
+  }
+
+  .booking-item {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 3px;
+    padding: 0.75rem;
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    animation: slideIn 0.3s ease;
+  }
+
+  @keyframes slideIn {
+    from { opacity: 0; transform: translateX(10px); }
+    to { opacity: 1; transform: translateX(0); }
+  }
+
+  .booking-printer-num {
+    font-family: var(--mono);
+    font-size: 1.1rem;
+    color: var(--orange);
+    min-width: 32px;
+  }
+
+  .booking-details {
+    flex: 1;
+    min-width: 0;
+  }
+
+  .booking-student {
+    font-size: 0.8rem;
+    font-weight: 600;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .booking-meta {
+    font-family: var(--mono);
+    font-size: 0.6rem;
+    color: var(--text-dim);
+    margin-top: 1px;
+  }
+
+  .booking-delete {
+    background: none;
+    border: 1px solid var(--border);
+    border-radius: 2px;
+    color: var(--text-dim);
+    cursor: pointer;
+    padding: 3px 6px;
+    font-size: 0.7rem;
+    transition: all 0.15s;
+    white-space: nowrap;
+  }
+
+  .booking-delete:hover {
+    border-color: var(--red);
+    color: var(--red);
+    background: var(--red-dim);
+  }
+
+  .empty-bookings {
+    text-align: center;
+    padding: 2rem;
+    color: var(--text-dim);
+    font-size: 0.8rem;
+    font-family: var(--mono);
+  }
+
+  /* Toast notification */
+  .toast {
+    position: fixed;
+    bottom: 2rem;
+    left: 50%;
+    transform: translateX(-50%) translateY(20px);
+    background: var(--green-dim);
+    border: 1px solid rgba(45,255,127,0.3);
+    color: var(--green);
+    font-family: var(--mono);
+    font-size: 0.8rem;
+    padding: 0.75rem 1.5rem;
+    border-radius: 3px;
+    opacity: 0;
+    transition: all 0.3s;
+    pointer-events: none;
+    z-index: 9000;
+    white-space: nowrap;
+  }
+
+  .toast.show {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+  }
+
+  .toast.error {
+    background: var(--red-dim);
+    border-color: rgba(255,59,92,0.3);
+    color: var(--red);
+  }
+
+  /* Stats bar */
+  .stats-bar {
+    display: flex;
+    gap: 1rem;
+    margin-bottom: 1.5rem;
+    padding: 0.75rem 1rem;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+  }
+
+  .stat {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
+
+  .stat-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+  }
+
+  .stat-dot.green { background: var(--green); }
+  .stat-dot.red { background: var(--red); }
+  .stat-dot.blue { background: var(--blue); }
+
+  .stat-text {
+    font-family: var(--mono);
+    font-size: 0.7rem;
+    color: var(--text-dim);
+  }
+
+  .stat-text strong {
+    color: var(--text);
+  }
+
+  /* Divider */
+  .divider {
+    width: 1px;
+    background: var(--border);
+    margin: 0 0.25rem;
+  }
+
+  /* Responsive */
+  @media (max-width: 900px) {
+    main {
+      grid-template-columns: 1fr;
+    }
+    .booking-panel {
+      border-top: 1px solid var(--border);
+    }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">
+    <div class="logo-icon">
+      <svg viewBox="0 0 36 36" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <rect x="4" y="20" width="28" height="3" fill="#ff6b1a"/>
+        <rect x="8" y="14" width="20" height="7" fill="#191d26" stroke="#ff6b1a" stroke-width="1"/>
+        <rect x="14" y="23" width="8" height="8" fill="#111318" stroke="#252a35" stroke-width="1"/>
+        <circle cx="18" cy="17" r="3" fill="#ff6b1a" opacity="0.6"/>
+        <rect x="16" y="4" width="4" height="11" fill="#ff6b1a" opacity="0.4"/>
+      </svg>
+    </div>
+    <div class="logo-text">MECH <span>PrintLab</span></div>
+  </div>
+  <div class="header-right">
+    <div class="status-pill">● SYSTEM ONLINE</div>
+    <div class="clock" id="clock">--:--:--</div>
+  </div>
+</header>
+
+<main>
+  <!-- Left: Printer Grid -->
+  <div class="printers-panel">
+    <div class="panel-header">
+      <div class="panel-title">// Printer Fleet</div>
+      <div class="printer-count" id="availableCount">— available</div>
+    </div>
+
+    <div class="stats-bar">
+      <div class="stat">
+        <div class="stat-dot green"></div>
+        <div class="stat-text"><strong id="stat-available">0</strong> Available</div>
+      </div>
+      <div class="divider"></div>
+      <div class="stat">
+        <div class="stat-dot red"></div>
+        <div class="stat-text"><strong id="stat-busy">0</strong> In Use</div>
+      </div>
+      <div class="divider"></div>
+      <div class="stat">
+        <div class="stat-dot blue"></div>
+        <div class="stat-text"><strong id="stat-maintenance">0</strong> Maintenance</div>
+      </div>
+    </div>
+
+    <div class="printer-grid" id="printerGrid"></div>
+  </div>
+
+  <!-- Right: Booking Form -->
+  <div class="booking-panel">
+    <div class="booking-panel-header">
+      <div class="section-label">// New Booking</div>
+      <div class="section-title">Reserve a Printer</div>
+    </div>
+
+    <div id="selectedDisplay">
+      <div class="no-selection">
+        <div class="no-selection-icon">🖨️</div>
+        Select an available printer from the grid
+      </div>
+    </div>
+
+    <div class="form-group">
+      <label class="form-label">Student Name</label>
+      <input class="form-input" id="studentName" type="text" placeholder="e.g. Alex Johnson" autocomplete="off">
+    </div>
+
+    <div class="form-group">
+      <label class="form-label">Student ID</label>
+      <input class="form-input" id="studentId" type="text" placeholder="e.g. S12345678" autocomplete="off">
+    </div>
+
+    <div class="form-row" style="margin-bottom:1.2rem; margin-top:1.2rem">
+      <div class="form-group" style="margin-bottom:0">
+        <label class="form-label">Stream</label>
+        <select class="form-select" id="stream">
+          <option value="">— Select —</option>
+          <option value="Mechanical">Mechanical</option>
+          <option value="Mechatronics">Mechatronics</option>
+          <option value="Civil">Civil</option>
+          <option value="Electrical">Electrical</option>
+          <option value="Software">Software</option>
+          <option value="Aerospace">Aerospace</option>
+          <option value="Chemical">Chemical</option>
+          <option value="Biomedical">Biomedical</option>
+          <option value="Industrial">Industrial</option>
+          <option value="Other">Other</option>
+        </select>
+      </div>
+      <div class="form-group" style="margin-bottom:0">
+        <label class="form-label">Team / Group</label>
+        <input class="form-input" id="team" type="text" placeholder="e.g. Team Sigma" autocomplete="off">
+      </div>
+    </div>
+
+    <div class="form-group">
+      <label class="form-label">Project / File Name</label>
+      <input class="form-input" id="projectName" type="text" placeholder="e.g. bracket_v2.stl" autocomplete="off">
+    </div>
+
+    <div class="form-group">
+      <label class="form-label">Material</label>
+      <select class="form-select" id="material">
+        <option value="PLA">PLA — Standard</option>
+        <option value="PETG">PETG — Flexible</option>
+        <option value="ABS">ABS — Durable</option>
+        <option value="TPU">TPU — Rubber-like</option>
+        <option value="Resin">Resin — High Detail</option>
+      </select>
+    </div>
+
+    <div class="form-group">
+      <label class="form-label">Estimated Duration</label>
+      <div class="duration-grid" style="grid-template-columns: repeat(4,1fr)">
+        <div class="duration-btn" data-hours="0.5" onclick="selectDuration(this)">30 min</div>
+        <div class="duration-btn active" data-hours="1" onclick="selectDuration(this)">1 hr</div>
+        <div class="duration-btn" data-hours="1.5" onclick="selectDuration(this)">1.5 hr</div>
+        <div class="duration-btn" data-hours="2" onclick="selectDuration(this)">2 hr <span style="font-size:0.55rem;opacity:0.7">MAX</span></div>
+      </div>
+    </div>
+
+    <div class="form-group">
+      <label class="form-label">Notes (optional)</label>
+      <textarea class="form-textarea" id="notes" placeholder="Any special requirements..."></textarea>
+    </div>
+
+    <button class="submit-btn" id="bookBtn" onclick="submitBooking()" disabled>
+      Confirm Booking
+    </button>
+
+    <!-- Bookings list -->
+    <div class="bookings-section">
+      <div class="panel-header" style="margin-bottom:1rem">
+        <div class="panel-title">// Active Bookings</div>
+        <div class="printer-count" id="bookingCount">0 bookings</div>
+      </div>
+      <div class="bookings-list" id="bookingsList">
+        <div class="empty-bookings">No active bookings</div>
+      </div>
+    </div>
+  </div>
+</main>
+
+<div class="toast" id="toast"></div>
+
+<script>
+// Printer data
+const PRINTERS = [
+  { id: 1,  name: "Bambu P1S", label: "MECH EK01", spec: "256×256×256mm · 0.4mm", status: "available" },
+  { id: 2,  name: "Bambu P1S", label: "MECH EK02", spec: "256×256×256mm · 0.4mm", status: "available" },
+  { id: 3,  name: "Bambu P1S", label: "MECH EK03", spec: "256×256×256mm · 0.4mm", status: "available" },
+  { id: 4,  name: "Bambu P1S", label: "MECH EK04", spec: "256×256×256mm · 0.4mm", status: "available" },
+  { id: 5,  name: "Bambu P1S", label: "MECH EK05", spec: "256×256×256mm · 0.4mm", status: "available" },
+  { id: 6,  name: "Bambu P1S", label: "MECH EK06", spec: "256×256×256mm · 0.4mm", status: "available" },
+  { id: 7,  name: "Bambu P1S", label: "MECH EK07", spec: "256×256×256mm · 0.4mm", status: "available" },
+  { id: 8,  name: "Bambu P1S", label: "MECH EK08", spec: "256×256×256mm · 0.4mm", status: "available" },
+  { id: 9,  name: "Bambu P1S", label: "MECH EK09", spec: "256×256×256mm · 0.4mm", status: "available" },
+  { id: 10, name: "Bambu P1S", label: "MECH EK10", spec: "256×256×256mm · 0.4mm", status: "available" },
+  { id: 11, name: "Bambu P1S", label: "MECH EK11", spec: "256×256×256mm · 0.4mm", status: "available" },
+  { id: 12, name: "Bambu P1S", label: "MECH EK12", spec: "256×256×256mm · 0.4mm", status: "available" },
+  { id: 13, name: "Bambu P1S", label: "MECH EK13", spec: "256×256×256mm · 0.4mm", status: "available" },
+  { id: 14, name: "Bambu P1S", label: "MECH EK14", spec: "256×256×256mm · 0.4mm", status: "available" },
+  { id: 15, name: "Bambu P1S", label: "MECH EK15", spec: "256×256×256mm · 0.4mm", status: "available" },
+];
+
+let selectedPrinter = null;
+let selectedDuration = 1;
+let bookings = [];
+
+function init() {
+  renderPrinters();
+  updateStats();
+  updateClock();
+  setInterval(updateClock, 1000);
+}
+
+function updateClock() {
+  const now = new Date();
+  document.getElementById('clock').textContent = now.toLocaleTimeString('en-AU', {hour12: false});
+}
+
+function getPrinterStatus(printerId) {
+  const booking = bookings.find(b => b.printerId === printerId);
+  if (booking) return 'busy';
+  const p = PRINTERS.find(p => p.id === printerId);
+  return p ? p.status : 'available';
+}
+
+function renderPrinters() {
+  const grid = document.getElementById('printerGrid');
+  grid.innerHTML = PRINTERS.map(p => {
+    const status = getPrinterStatus(p.id);
+    const booking = bookings.find(b => b.printerId === p.id);
+    const isSelected = selectedPrinter === p.id;
+    const isBusy = status === 'busy' || status === 'maintenance';
+
+    let badgeHtml = '';
+    let infoHtml = '';
+
+    if (status === 'busy' && booking) {
+      badgeHtml = `<span class="printer-status-badge badge-busy">IN USE</span>`;
+      const teamStr = booking.team ? ` · ${booking.team}` : '';
+      infoHtml = `
+        <div class="printer-booking-info" style="display:flex;flex-direction:column;gap:3px">
+          <span>▶ ${booking.studentName}</span>
+          <span style="color:var(--orange);opacity:0.85">${booking.stream}${teamStr}</span>
+          <span style="color:var(--text-dim)">${booking.duration === 0.5 ? '30 min' : booking.duration + ' hr'} · ${booking.material}</span>
+        </div>`;
+    } else if (status === 'maintenance') {
+      badgeHtml = `<span class="printer-status-badge badge-maintenance">MAINT.</span>`;
+      infoHtml = `<div class="printer-available-info">Scheduled maintenance</div>`;
+    } else {
+      badgeHtml = `<span class="printer-status-badge badge-available">READY</span>`;
+      infoHtml = `<div class="printer-available-info">Click to select</div>`;
+    }
+
+    return `
+      <div class="printer-card ${isBusy ? 'busy' : ''} ${isSelected ? 'selected' : ''}"
+           onclick="${isBusy ? '' : `selectPrinter(${p.id})`}">
+        <div class="printer-card-top">
+          <div class="printer-number">${p.label}</div>
+          ${badgeHtml}
+        </div>
+        <div class="printer-name">${p.name}</div>
+        <div class="printer-spec">${p.spec}</div>
+        ${infoHtml}
+      </div>
+    `;
+  }).join('');
+
+  updateStats();
+}
+
+function updateStats() {
+  const available = PRINTERS.filter(p => getPrinterStatus(p.id) === 'available').length;
+  const busy = PRINTERS.filter(p => getPrinterStatus(p.id) === 'busy').length;
+  const maint = PRINTERS.filter(p => getPrinterStatus(p.id) === 'maintenance').length;
+
+  document.getElementById('availableCount').textContent = `${available} available`;
+  document.getElementById('stat-available').textContent = available;
+  document.getElementById('stat-busy').textContent = busy;
+  document.getElementById('stat-maintenance').textContent = maint;
+}
+
+function selectPrinter(id) {
+  const status = getPrinterStatus(id);
+  if (status === 'busy' || status === 'maintenance') return;
+
+  selectedPrinter = (selectedPrinter === id) ? null : id;
+  renderPrinters();
+  updateSelectedDisplay();
+  updateBookBtn();
+}
+
+function updateSelectedDisplay() {
+  const display = document.getElementById('selectedDisplay');
+  if (!selectedPrinter) {
+    display.innerHTML = `
+      <div class="no-selection">
+        <div class="no-selection-icon">🖨️</div>
+        Select an available printer from the grid
+      </div>
+    `;
+    return;
+  }
+
+  const p = PRINTERS.find(p => p.id === selectedPrinter);
+  display.innerHTML = `
+    <div class="selected-printer-display">
+      <div class="selected-printer-num">${p.label}</div>
+      <div class="selected-printer-details">
+        <div class="selected-printer-name">${p.name}</div>
+        <div class="selected-printer-spec">${p.spec}</div>
+      </div>
+      <span class="printer-status-badge badge-available">SELECTED</span>
+    </div>
+  `;
+}
+
+function selectDuration(el) {
+  const hours = parseFloat(el.dataset.hours);
+  if (hours > 2) { showToast('Maximum print time is 2 hours', true); return; }
+  document.querySelectorAll('.duration-btn').forEach(b => b.classList.remove('active'));
+  el.classList.add('active');
+  selectedDuration = hours;
+}
+
+function updateBookBtn() {
+  const btn = document.getElementById('bookBtn');
+  btn.disabled = !selectedPrinter;
+}
+
+function submitBooking() {
+  const name = document.getElementById('studentName').value.trim();
+  const sid = document.getElementById('studentId').value.trim();
+  const project = document.getElementById('projectName').value.trim();
+  const material = document.getElementById('material').value;
+  const stream = document.getElementById('stream').value;
+  const team = document.getElementById('team').value.trim();
+  const notes = document.getElementById('notes').value.trim();
+
+  if (!name) { showToast('Enter a student name', true); return; }
+  if (!sid) { showToast('Enter a student ID', true); return; }
+  if (!stream) { showToast('Select a stream', true); return; }
+  if (!project) { showToast('Enter a project/file name', true); return; }
+  if (!selectedPrinter) { showToast('Select a printer first', true); return; }
+
+  const booking = {
+    id: Date.now(),
+    printerId: selectedPrinter,
+    studentName: name,
+    studentId: sid,
+    stream: stream,
+    team: team,
+    project: project,
+    material: material,
+    duration: selectedDuration,
+    notes: notes,
+    time: new Date().toLocaleTimeString('en-AU', { hour: '2-digit', minute: '2-digit', hour12: false }),
+    date: new Date().toLocaleDateString('en-AU', { day: '2-digit', month: 'short' }),
+  };
+
+  bookings.push(booking);
+
+  // Reset form
+  document.getElementById('studentName').value = '';
+  document.getElementById('studentId').value = '';
+  document.getElementById('stream').value = '';
+  document.getElementById('team').value = '';
+  document.getElementById('projectName').value = '';
+  document.getElementById('notes').value = '';
+  selectedPrinter = null;
+
+  const bookedPrinter = PRINTERS.find(pr => pr.id === booking.printerId);
+  renderPrinters();
+  updateSelectedDisplay();
+  updateBookBtn();
+  renderBookings();
+  showToast(`✓ ${bookedPrinter.label} booked for ${name}`);
+}
+
+function deleteBooking(id) {
+  bookings = bookings.filter(b => b.id !== id);
+  renderPrinters();
+  renderBookings();
+  showToast('Booking cancelled');
+}
+
+function renderBookings() {
+  const list = document.getElementById('bookingsList');
+  const count = document.getElementById('bookingCount');
+
+  count.textContent = `${bookings.length} booking${bookings.length !== 1 ? 's' : ''}`;
+
+  if (bookings.length === 0) {
+    list.innerHTML = '<div class="empty-bookings">No active bookings</div>';
+    return;
+  }
+
+  list.innerHTML = bookings.slice().reverse().map(b => {
+    const p = PRINTERS.find(pr => pr.id === b.printerId);
+    return `
+    <div class="booking-item">
+      <div class="booking-printer-num" style="font-size:0.75rem;min-width:72px">${p.label}</div>
+      <div class="booking-details">
+        <div class="booking-student">${b.studentName} <span style="color:var(--text-dim);font-weight:400">(${b.studentId})</span></div>
+        <div class="booking-meta">${b.stream}${b.team ? ' · ' + b.team : ''} · ${b.project} · ${b.material} · ${b.duration === 0.5 ? '30 min' : b.duration + ' hr'} · ${b.date} ${b.time}</div>
+      </div>
+      <button class="booking-delete" onclick="deleteBooking(${b.id})">Cancel</button>
+    </div>
+  `}).join('');
+}
+
+function showToast(msg, isError = false) {
+  const toast = document.getElementById('toast');
+  toast.textContent = msg;
+  toast.className = 'toast show' + (isError ? ' error' : '');
+  setTimeout(() => { toast.className = 'toast' + (isError ? ' error' : ''); }, 3000);
+}
+
+init();
+</script>
+</body>
+</html>
