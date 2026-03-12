@@ -678,14 +678,18 @@ async function confirmAndSubmit() {
 }
 
 async function markCollected(id) {
-  const team = prompt('Enter your team name to confirm collection:');
-  if (!team || !team.trim()) return;
+  const ok = confirm(
+    'Please confirm you have physically collected this print.\n\n' +
+    'Do NOT mark as collected if you have not picked it up. ' +
+    'We check remaining prints against active collection tickets — ' +
+    'falsely marking a print as collected may result in your team being banned from 3D printing.'
+  );
+  if (!ok) return;
 
   try {
     const res = await fetch('/api/bookings/' + id + '/collect', {
       method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ team: team.trim() })
+      headers: { 'Content-Type': 'application/json' }
     });
     if (!res.ok) {
       const err = await res.json();

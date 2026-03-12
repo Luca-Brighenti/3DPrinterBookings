@@ -266,11 +266,6 @@ router.patch('/:id/collect', async (req, res) => {
     return res.status(400).json({ error: 'Invalid booking ID' });
   }
 
-  const { team } = req.body || {};
-  if (!team || !String(team).trim()) {
-    return res.status(400).json({ error: 'Team name required to confirm collection' });
-  }
-
   try {
     const { rows } = await pool.query(
       `UPDATE bookings
@@ -278,12 +273,11 @@ router.patch('/:id/collect', async (req, res) => {
        WHERE id = $1
          AND status = 'completed'
          AND collected_at IS NULL
-         AND LOWER(team) = LOWER($2)
        RETURNING id`,
-      [bookingId, String(team).trim()]
+      [bookingId]
     );
     if (rows.length === 0) {
-      return res.status(404).json({ error: 'Print not found, already collected, or team name does not match' });
+      return res.status(404).json({ error: 'Print not found or already collected' });
     }
     return res.json({ message: 'Marked as collected' });
   } catch (err) {
