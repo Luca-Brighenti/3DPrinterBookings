@@ -666,6 +666,7 @@
     <button class="tab" data-tab="laser" onclick="switchTab('laser')">Laser Cutter</button>
     <button class="tab" data-tab="wind" onclick="switchTab('wind')">Wind Tunnel</button>
     <button class="tab" data-tab="cnc" onclick="switchTab('cnc')">CNC</button>
+    <button class="tab" data-tab="pickup" onclick="switchTab('pickup')">Add Pickup</button>
     <button class="tab" data-tab="analytics" onclick="switchTab('analytics')">Analytics</button>
   </div>
 
@@ -727,6 +728,42 @@
       </select>
     </div>
     <div class="table-wrap"><table><thead><tr><th>Date</th><th>Time</th><th>Team</th><th>Stream</th><th>Course</th><th>File</th><th>Status</th><th>Actions</th></tr></thead><tbody id="cncBody"><tr><td colspan="8" class="empty-table">Select a filter...</td></tr></tbody></table></div>
+  </div>
+
+  <div class="tab-content" id="tab-pickup">
+    <div class="section-header" style="margin-bottom:0.85rem">Manually add a completed print that needs to be picked up</div>
+    <div style="max-width:480px">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.6rem;margin-bottom:0.6rem">
+        <div>
+          <label class="form-label">TT Stream</label>
+          <input class="form-input" id="pickupStream" type="text" placeholder="e.g. 1A" style="margin-bottom:0">
+        </div>
+        <div>
+          <label class="form-label">Team / Group</label>
+          <input class="form-input" id="pickupTeam" type="text" placeholder="e.g. F" style="margin-bottom:0">
+        </div>
+      </div>
+      <div style="margin-bottom:0.6rem">
+        <label class="form-label">Project Name</label>
+        <input class="form-input" id="pickupProject" type="text" placeholder="e.g. bracket_v2" style="margin-bottom:0">
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.6rem;margin-bottom:0.6rem">
+        <div>
+          <label class="form-label">Course</label>
+          <select class="form-input" id="pickupCourse" style="margin-bottom:0">
+            <option value="Morphing Wing">Morphing Wing</option>
+          </select>
+        </div>
+        <div>
+          <label class="form-label">Material</label>
+          <select class="form-input" id="pickupMaterial" style="margin-bottom:0">
+            <option value="PLA">PLA</option>
+            <option value="PETG">PETG</option>
+          </select>
+        </div>
+      </div>
+      <button class="action-btn btn-complete" style="width:100%;justify-content:center;padding:0.65rem" onclick="submitPickupJob()">&#10003; Add Pickup Job</button>
+    </div>
   </div>
 
   <div class="tab-content" id="tab-analytics">
@@ -1152,6 +1189,37 @@ async function deleteSlot(id, type) {
     showToast('Booking removed');
     loadSlotBookings(type);
     loadStats();
+  } catch { showToast('Network error', true); }
+}
+
+async function submitPickupJob() {
+  const timetableStream = document.getElementById('pickupStream').value.trim();
+  const team = document.getElementById('pickupTeam').value.trim();
+  const project = document.getElementById('pickupProject').value.trim();
+  const courseStream = document.getElementById('pickupCourse').value;
+  const material = document.getElementById('pickupMaterial').value;
+
+  if (!timetableStream || !team || !project) {
+    showToast('TT stream, team, and project are required', true);
+    return;
+  }
+  try {
+    const res = await fetch('/api/admin/bookings/manual-pickup', {
+      method: 'POST',
+      headers: authHeaders(),
+      body: JSON.stringify({ courseStream, timetableStream, team, project, material })
+    });
+    if (res.status === 401) { logout(); return; }
+    if (!res.ok) {
+      const d = await res.json();
+      showToast(d.error || 'Failed to create pickup job', true);
+      return;
+    }
+    showToast('Pickup job created — visible on collection board');
+    document.getElementById('pickupStream').value = '';
+    document.getElementById('pickupTeam').value = '';
+    document.getElementById('pickupProject').value = '';
+    await loadStats();
   } catch { showToast('Network error', true); }
 }
 

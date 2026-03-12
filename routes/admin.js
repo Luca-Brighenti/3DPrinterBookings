@@ -378,6 +378,37 @@ router.get('/stats', requireAdmin, async (_req, res) => {
   }
 });
 
+router.post('/bookings/manual-pickup', requireAdmin, async (req, res) => {
+  const { courseStream, timetableStream, team, project, material } = req.body || {};
+  if (!timetableStream || !team || !project) {
+    return res.status(400).json({ error: 'TT stream, team, and project are required' });
+  }
+
+  const cs = String(courseStream || 'Morphing Wing').trim().slice(0, 50);
+  const ts = String(timetableStream).trim().slice(0, 50);
+  const tm = String(team).trim().slice(0, 100);
+  const pj = String(project).trim().slice(0, 200);
+  const mat = String(material || 'PLA').trim().slice(0, 20);
+
+  if (!ts || !tm || !pj) {
+    return res.status(400).json({ error: 'Fields cannot be blank' });
+  }
+
+  try {
+    const { rows } = await pool.query(
+      `INSERT INTO bookings
+        (printer_id, course_stream, timetable_stream, team, project, material, duration, status, completed_at)
+       VALUES (NULL, $1, $2, $3, $4, $5, 0, 'completed', NOW())
+       RETURNING id, timetable_stream, team, project, status`,
+      [cs, ts, tm, pj, mat]
+    );
+    return res.status(201).json({ message: 'Pickup job created', booking: rows[0] });
+  } catch (err) {
+    console.error('Error creating manual pickup:', err);
+    return res.status(500).json({ error: 'Failed to create pickup job' });
+  }
+});
+
 router.get('/export', requireAdmin, async (_req, res) => {
   try {
     const { rows } = await pool.query(`
@@ -446,6 +477,10 @@ router.get('/slot-bookings', requireAdmin, async (req, res) => {
     return res.status(400).json({ error: 'Invalid status filter' });
   }
   try {
+    await pool.query(
+      `UPDATE slot_bookings SET status = 'completed'
+       WHERE status = 'booked' AND (slot_date + slot_time + INTERVAL '15 minutes') < NOW()`
+    );
     const conditions = [];
     const params = [];
     if (type) { params.push(type); conditions.push(`resource_type = $${params.length}`); }

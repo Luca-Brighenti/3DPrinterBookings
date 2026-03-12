@@ -56,6 +56,7 @@ async function initDB() {
         status TEXT NOT NULL DEFAULT 'queued',
         reject_reason TEXT,
         completed_at TIMESTAMP,
+        collected_at TIMESTAMP,
         created_at TIMESTAMP DEFAULT NOW()
       )
     `);
@@ -78,6 +79,7 @@ async function initDB() {
     await client.query('ALTER TABLE bookings ADD COLUMN IF NOT EXISTS status TEXT DEFAULT \'queued\'');
     await client.query('ALTER TABLE bookings ADD COLUMN IF NOT EXISTS reject_reason TEXT');
     await client.query('ALTER TABLE bookings ADD COLUMN IF NOT EXISTS completed_at TIMESTAMP');
+    await client.query('ALTER TABLE bookings ADD COLUMN IF NOT EXISTS collected_at TIMESTAMP');
     await client.query('ALTER TABLE bookings ADD COLUMN IF NOT EXISTS created_at TIMESTAMP DEFAULT NOW()');
 
     const hasLegacyStream = await columnExists(client, 'bookings', 'stream');
@@ -165,6 +167,7 @@ async function initDB() {
     await client.query('CREATE INDEX IF NOT EXISTS idx_bookings_archive_order ON bookings(status, created_at DESC)');
     await client.query('CREATE INDEX IF NOT EXISTS idx_bookings_status ON bookings(status)');
     await client.query('CREATE INDEX IF NOT EXISTS idx_bookings_created_at ON bookings(created_at DESC)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_bookings_collection_ready ON bookings(completed_at DESC) WHERE status = \'completed\' AND collected_at IS NULL');
 
     // Drop old v1 indexes that no longer apply.
     await client.query('DROP INDEX IF EXISTS idx_one_active_per_printer');
@@ -245,7 +248,8 @@ async function initDB() {
         FROM slot_bookings
         WHERE status = 'booked'
       )
-      DELETE FROM slot_bookings
+      UPDATE slot_bookings
+      SET status = 'cancelled'
       WHERE id IN (SELECT id FROM ranked WHERE rn > 1)
     `);
     await client.query(`

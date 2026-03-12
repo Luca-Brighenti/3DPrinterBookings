@@ -109,7 +109,18 @@ function isFutureSlot(dateStr, timeStr) {
   return slotEnd.getTime() > Date.now();
 }
 
+async function autoCompletePastSlots() {
+  await pool.query(
+    `UPDATE slot_bookings
+     SET status = 'completed'
+     WHERE status = 'booked'
+       AND (slot_date + slot_time + INTERVAL '15 minutes') < NOW()`
+  );
+}
+
 async function enforceSingleActiveBookingPerTeam(resourceType, timetableStream, team) {
+  await autoCompletePastSlots();
+
   const { rows } = await pool.query(
     `SELECT id, file_path, storage_provider
      FROM slot_bookings
@@ -167,6 +178,8 @@ router.get('/', async (req, res) => {
   const { monday, friday, dates } = weekInfo;
 
   try {
+    await autoCompletePastSlots();
+
     const { rows } = await pool.query(
       `SELECT id, resource_type, slot_date, slot_time, timetable_stream, team, status,
               course_stream, file_original_name,
