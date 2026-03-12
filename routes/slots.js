@@ -13,8 +13,9 @@ const { bookingSubmitLimiter } = require('../middleware/rateLimit');
 const router = express.Router();
 const uploadSingle = createUploadMiddleware('file', { allowAnyExtension: true });
 
-const VALID_TYPES = ['laser_cutter', 'wind_tunnel'];
+const VALID_TYPES = ['laser_cutter', 'wind_tunnel', 'cnc'];
 const LASER_ALLOWED_EXTENSIONS = new Set(['.dxf', '.svg', '.ai', '.pdf', '.3mf', '.stl']);
+const CNC_ALLOWED_EXTENSIONS = new Set(['.nc', '.tap', '.gcode', '.step', '.stp', '.stl', '.3mf', '.dxf']);
 
 const SLOT_WINDOWS = [
   { day: 1, startHour: 15, startMin: 0, endHour: 17, endMin: 0 },
@@ -106,6 +107,33 @@ function isFutureSlot(dateStr, timeStr) {
   const slotEnd = new Date(slotStart);
   slotEnd.setMinutes(slotEnd.getMinutes() + 15);
   return slotEnd.getTime() > Date.now();
+}
+
+async function enforceSingleActiveBookingPerTeam(resourceType, timetableStream, team) {
+  const { rows } = await pool.query(
+    `SELECT id, file_path, storage_provider
+     FROM slot_bookings
+     WHERE resource_type = $1
+       AND status = 'booked'
+       AND LOWER(timetable_stream) = LOWER($2)
+       AND LOWER(team) = LOWER($3)
+     ORDER BY created_at ASC, id ASC`,
+    [resourceType, timetableStream, team]
+  );
+
+  if (rows.length <= 1) {
+    return rows.length === 1;
+  }
+
+  const extras = rows.slice(1);
+  for (const row of extras) {
+    await pool.query('DELETE FROM slot_bookings WHERE id = $1', [row.id]);
+    if (row.file_path) {
+      await deleteStoredFile(row.file_path, row.storage_provider || 'local');
+    }
+  }
+
+  return true;
 }
 
 function generateSlotsForDate(dateStr) {
@@ -209,6 +237,16 @@ router.post(
       return rejectCleanup(res, 400, 'Field too long', req.file);
     }
 
+    const hasExistingActiveBooking = await enforceSingleActiveBookingPerTeam(resourceType, ts, tm);
+    if (hasExistingActiveBooking) {
+      return rejectCleanup(
+        res,
+        409,
+        'Your team already has an active booking for this machine. Only one active booking is allowed.',
+        req.file
+      );
+    }
+
     if (!parseDateInput(slotDate)) {
       return rejectCleanup(res, 400, 'Invalid date format. Use YYYY-MM-DD.', req.file);
     }
@@ -233,6 +271,17 @@ router.post(
           res,
           400,
           'Laser uploads must be .dxf, .svg, .ai, .pdf, .3mf, or .stl files',
+          req.file
+        );
+      }
+    }
+    if (req.file && resourceType === 'cnc') {
+      const extension = getFileExtension(req.file.originalname);
+      if (!CNC_ALLOWED_EXTENSIONS.has(extension)) {
+        return rejectCleanup(
+          res,
+          400,
+          'CNC uploads must be .nc, .tap, .gcode, .step, .stp, .stl, .3mf, or .dxf files',
           req.file
         );
       }
@@ -282,6 +331,9 @@ router.post(
         await deleteStoredFile(persisted.filePath, persisted.storageProvider);
       }
       if (err.code === '23505') {
+        if (err.constraint === 'idx_slot_unique_team_booked') {
+          return res.status(409).json({ error: 'Your team already has an active booking for this machine.' });
+        }
         return res.status(409).json({ error: 'This time slot is already booked' });
       }
       console.error('Error creating slot booking:', err);

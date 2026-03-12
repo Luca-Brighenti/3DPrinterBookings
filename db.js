@@ -55,6 +55,7 @@ async function initDB() {
         storage_provider TEXT NOT NULL DEFAULT 'local',
         status TEXT NOT NULL DEFAULT 'queued',
         reject_reason TEXT,
+        completed_at TIMESTAMP,
         created_at TIMESTAMP DEFAULT NOW()
       )
     `);
@@ -76,6 +77,7 @@ async function initDB() {
     await client.query('ALTER TABLE bookings ADD COLUMN IF NOT EXISTS storage_provider TEXT DEFAULT \'local\'');
     await client.query('ALTER TABLE bookings ADD COLUMN IF NOT EXISTS status TEXT DEFAULT \'queued\'');
     await client.query('ALTER TABLE bookings ADD COLUMN IF NOT EXISTS reject_reason TEXT');
+    await client.query('ALTER TABLE bookings ADD COLUMN IF NOT EXISTS completed_at TIMESTAMP');
     await client.query('ALTER TABLE bookings ADD COLUMN IF NOT EXISTS created_at TIMESTAMP DEFAULT NOW()');
 
     const hasLegacyStream = await columnExists(client, 'bookings', 'stream');
@@ -132,6 +134,11 @@ async function initDB() {
         ELSE 'queued'
       END
       WHERE status IS NULL OR status NOT IN ('queued', 'printing', 'completed', 'rejected') OR status IN ('active', 'cancelled')
+    `);
+    await client.query(`
+      UPDATE bookings
+      SET completed_at = created_at
+      WHERE status = 'completed' AND completed_at IS NULL
     `);
 
     // Remove legacy personal-data columns for compliance.
@@ -228,6 +235,20 @@ async function initDB() {
       WHERE status IS NULL OR status NOT IN ('booked', 'completed', 'cancelled') OR status IN ('active', 'canceled')
     `);
     await client.query(`
+      WITH ranked AS (
+        SELECT
+          id,
+          ROW_NUMBER() OVER (
+            PARTITION BY resource_type, LOWER(timetable_stream), LOWER(team)
+            ORDER BY created_at ASC, id ASC
+          ) AS rn
+        FROM slot_bookings
+        WHERE status = 'booked'
+      )
+      DELETE FROM slot_bookings
+      WHERE id IN (SELECT id FROM ranked WHERE rn > 1)
+    `);
+    await client.query(`
       UPDATE slot_bookings
       SET storage_provider = 'local'
       WHERE storage_provider IS NULL OR storage_provider = ''
@@ -249,6 +270,11 @@ async function initDB() {
     await client.query(`
       CREATE UNIQUE INDEX IF NOT EXISTS idx_slot_unique_booked
       ON slot_bookings(resource_type, slot_date, slot_time)
+      WHERE status = 'booked'
+    `).catch(() => {});
+    await client.query(`
+      CREATE UNIQUE INDEX IF NOT EXISTS idx_slot_unique_team_booked
+      ON slot_bookings(resource_type, LOWER(timetable_stream), LOWER(team))
       WHERE status = 'booked'
     `).catch(() => {});
     await client.query('CREATE INDEX IF NOT EXISTS idx_slot_bookings_resource_date ON slot_bookings(resource_type, slot_date)');

@@ -189,7 +189,7 @@ router.put('/bookings/:id/complete', requireAdmin, async (req, res) => {
   if (Number.isNaN(id)) return res.status(400).json({ error: 'Invalid ID' });
   try {
     const { rows } = await pool.query(
-      "UPDATE bookings SET status = 'completed' WHERE id = $1 AND status IN ('queued', 'printing') RETURNING *",
+      "UPDATE bookings SET status = 'completed', completed_at = NOW() WHERE id = $1 AND status IN ('queued', 'printing') RETURNING *",
       [id]
     );
     if (rows.length === 0) return res.status(404).json({ error: 'Booking not found or already processed' });
@@ -334,7 +334,8 @@ router.get('/stats', requireAdmin, async (_req, res) => {
       streamStats,
       materialStats,
       laserBooked,
-      windBooked
+      windBooked,
+      cncBooked
     ] = await Promise.all([
       pool.query('SELECT COUNT(*) FROM bookings'),
       pool.query("SELECT COUNT(*) FROM bookings WHERE status = 'queued'"),
@@ -354,7 +355,8 @@ router.get('/stats', requireAdmin, async (_req, res) => {
       pool.query('SELECT course_stream AS stream, COUNT(*) AS count FROM bookings GROUP BY course_stream ORDER BY count DESC'),
       pool.query('SELECT material, COUNT(*) AS count FROM bookings GROUP BY material ORDER BY count DESC'),
       pool.query("SELECT COUNT(*) FROM slot_bookings WHERE resource_type = 'laser_cutter' AND status = 'booked'"),
-      pool.query("SELECT COUNT(*) FROM slot_bookings WHERE resource_type = 'wind_tunnel' AND status = 'booked'")
+      pool.query("SELECT COUNT(*) FROM slot_bookings WHERE resource_type = 'wind_tunnel' AND status = 'booked'"),
+      pool.query("SELECT COUNT(*) FROM slot_bookings WHERE resource_type = 'cnc' AND status = 'booked'")
     ]);
 
     return res.json({
@@ -367,7 +369,8 @@ router.get('/stats', requireAdmin, async (_req, res) => {
       streamStats: streamStats.rows,
       materialStats: materialStats.rows,
       laserBookedCount: parseInt(laserBooked.rows[0].count, 10),
-      windBookedCount: parseInt(windBooked.rows[0].count, 10)
+      windBookedCount: parseInt(windBooked.rows[0].count, 10),
+      cncBookedCount: parseInt(cncBooked.rows[0].count, 10)
     });
   } catch (err) {
     console.error('Error fetching stats:', err);
@@ -434,7 +437,7 @@ router.get('/export', requireAdmin, async (_req, res) => {
 
 router.get('/slot-bookings', requireAdmin, async (req, res) => {
   const { type, status } = req.query;
-  const validTypes = ['laser_cutter', 'wind_tunnel'];
+  const validTypes = ['laser_cutter', 'wind_tunnel', 'cnc'];
   const validStatuses = ['booked', 'completed', 'cancelled'];
   if (type && !validTypes.includes(type)) {
     return res.status(400).json({ error: 'Invalid resource type' });
@@ -514,6 +517,32 @@ router.put('/slot-bookings/:id/cancel', requireAdmin, async (req, res) => {
   } catch (err) {
     console.error('Error cancelling slot booking:', err);
     return res.status(500).json({ error: 'Failed to cancel' });
+  }
+});
+
+router.delete('/slot-bookings/:id', requireAdmin, async (req, res) => {
+  const id = parseInt(req.params.id, 10);
+  if (Number.isNaN(id)) return res.status(400).json({ error: 'Invalid ID' });
+  try {
+    const { rows: existing } = await pool.query(
+      'SELECT id, file_path, storage_provider FROM slot_bookings WHERE id = $1',
+      [id]
+    );
+    if (existing.length === 0) return res.status(404).json({ error: 'Booking not found' });
+
+    const booking = existing[0];
+    if (booking.file_path) {
+      const deleted = await deleteStoredFile(booking.file_path, booking.storage_provider || 'local');
+      if (!deleted) {
+        return res.status(500).json({ error: 'Failed to remove booking file' });
+      }
+    }
+
+    await pool.query('DELETE FROM slot_bookings WHERE id = $1', [id]);
+    return res.json({ message: 'Booking removed' });
+  } catch (err) {
+    console.error('Error deleting slot booking:', err);
+    return res.status(500).json({ error: 'Failed to remove booking' });
   }
 });
 

@@ -3,13 +3,13 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>MECH PrintLab — Wind Tunnel Booking</title>
+<title>MECH PrintLab — CNC Booking</title>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
   :root {
     --bg:#09090b; --surface:#111114; --surface-raised:#18181b; --surface-overlay:#1f1f23; --surface-bright:#27272a;
     --border:rgba(255,255,255,0.06); --border-hover:rgba(255,255,255,0.1);
-    --accent:#38bdf8; --accent-bright:#7dd3fc; --accent-dim:rgba(56,189,248,0.15); --accent-subtle:rgba(56,189,248,0.08);
+    --accent:#a78bfa; --accent-bright:#c4b5fd; --accent-dim:rgba(167,139,250,0.15); --accent-subtle:rgba(167,139,250,0.08);
     --page-accent:#f97316;
     --emerald:#10b981; --emerald-dim:rgba(16,185,129,0.12);
     --rose:#f43f5e; --rose-dim:rgba(244,63,94,0.12);
@@ -20,8 +20,8 @@
   *,*::before,*::after{margin:0;padding:0;box-sizing:border-box}
   @keyframes fadeIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
   body{background:var(--bg);color:var(--text);font-family:var(--sans);min-height:100vh;-webkit-font-smoothing:antialiased}
-  body::before{content:'';position:fixed;inset:0;background:radial-gradient(ellipse 80% 50% at 10% 0%,rgba(56,189,248,0.05) 0%,transparent 50%),radial-gradient(ellipse 60% 40% at 90% 100%,rgba(249,115,22,0.03) 0%,transparent 50%);pointer-events:none;z-index:0}
-  ::selection{background:rgba(56,189,248,0.3);color:#fff}
+  body::before{content:'';position:fixed;inset:0;background:radial-gradient(ellipse 80% 50% at 10% 0%,rgba(167,139,250,0.05) 0%,transparent 50%),radial-gradient(ellipse 60% 40% at 90% 100%,rgba(249,115,22,0.03) 0%,transparent 50%);pointer-events:none;z-index:0}
+  ::selection{background:rgba(167,139,250,0.3);color:#fff}
   ::-webkit-scrollbar{width:6px}::-webkit-scrollbar-track{background:transparent}::-webkit-scrollbar-thumb{background:var(--surface-bright);border-radius:3px}
 
   .site-nav{background:rgba(9,9,11,0.8);backdrop-filter:blur(20px) saturate(1.2);-webkit-backdrop-filter:blur(20px) saturate(1.2);border-bottom:1px solid var(--border);padding:0 1.5rem;display:flex;align-items:center;justify-content:space-between;height:56px;position:sticky;top:0;z-index:100}
@@ -70,9 +70,15 @@
   .form-input:focus,.form-select:focus{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-subtle),0 0 0 1px var(--accent);background:var(--surface-overlay)}
   .form-input::placeholder{color:var(--text-muted)}
   .form-select option{background:var(--surface-raised)}
+  .file-upload{position:relative;margin-bottom:0.85rem}
+  .file-upload input[type="file"]{position:absolute;inset:0;opacity:0;cursor:pointer}
+  .file-upload-label{display:flex;align-items:center;gap:0.65rem;background:var(--surface-raised);border:1px dashed var(--border-hover);border-radius:var(--radius-sm);padding:0.7rem 0.85rem;color:var(--text-muted);font-size:0.75rem;font-weight:500;transition:all 0.15s}
+  .file-upload-label:hover{border-color:var(--accent-dim);color:var(--text-secondary);background:var(--surface-overlay)}
+  .file-upload-label.has-file{border-color:var(--emerald);border-style:solid;color:var(--emerald);background:var(--emerald-dim)}
+  .file-hint{font-family:var(--mono);font-size:0.55rem;font-weight:500;color:var(--text-muted);margin-top:-0.5rem;margin-bottom:0.85rem}
   .modal-actions{display:flex;gap:0.5rem}
   .modal-btn{font-family:var(--mono);font-size:0.72rem;font-weight:700;padding:0.55rem 1.1rem;border-radius:var(--radius-xs);border:none;cursor:pointer;transition:all 0.15s;text-transform:uppercase;letter-spacing:0.04em}
-  .modal-btn.primary{background:var(--accent);color:#000}.modal-btn.primary:hover{background:var(--accent-bright);box-shadow:0 4px 12px rgba(56,189,248,0.3)}
+  .modal-btn.primary{background:var(--accent);color:#fff}.modal-btn.primary:hover{background:var(--accent-bright);box-shadow:0 4px 12px rgba(167,139,250,0.3)}
   .modal-btn.secondary{background:var(--surface-raised);color:var(--text-muted);border:1px solid var(--border)}.modal-btn.secondary:hover{color:var(--text-secondary);border-color:var(--border-hover)}
   .modal-btn:disabled{opacity:0.3;cursor:not-allowed}
 
@@ -104,13 +110,13 @@
   <div class="nav-links">
     <a href="/" class="nav-link">3D Printing</a>
     <a href="/laser" class="nav-link">Laser Cutter</a>
-    <a href="/windtunnel" class="nav-link active">Wind Tunnel</a>
-    <a href="/cnc" class="nav-link">CNC</a>
+    <a href="/windtunnel" class="nav-link">Wind Tunnel</a>
+    <a href="/cnc" class="nav-link active">CNC</a>
   </div>
 </nav>
 
 <div class="container">
-  <div class="section-label">Wind Tunnel</div>
+  <div class="section-label">CNC</div>
   <div class="section-title">Book a Time Slot</div>
 
   <div class="week-nav">
@@ -124,7 +130,7 @@
 
 <div class="modal-overlay" id="bookingModal">
   <div class="modal-box">
-    <div class="modal-title">Book Wind Tunnel</div>
+    <div class="modal-title">Book CNC</div>
     <div class="modal-sub" id="modalSlotLabel">—</div>
     <label class="form-label">Course</label>
     <select class="form-select" id="mCourse"><option value="">— Select —</option><option value="Morphing Wing">Morphing Wing</option></select>
@@ -132,6 +138,12 @@
     <input class="form-input" id="mStream" type="text" placeholder="e.g. 1A" autocomplete="off">
     <label class="form-label">Team / Group</label>
     <input class="form-input" id="mTeam" type="text" placeholder="e.g. F" autocomplete="off">
+    <label class="form-label">File (optional)</label>
+    <div class="file-upload">
+      <div class="file-upload-label" id="mFileLabel"><span>&#128193;</span><span id="mFileName">Choose a file...</span></div>
+      <input type="file" id="mFileInput" accept=".nc,.tap,.gcode,.step,.stp,.stl,.3mf,.dxf" onchange="updateModalFile()">
+    </div>
+    <div class="file-hint">.nc, .tap, .gcode, .step/.stp, .stl, .3mf, .dxf accepted</div>
     <div class="modal-actions">
       <button class="modal-btn primary" id="mBookBtn" onclick="confirmBooking()">Book Slot</button>
       <button class="modal-btn secondary" onclick="closeModal()">Cancel</button>
@@ -142,7 +154,7 @@
 <div class="toast" id="toast"></div>
 
 <script>
-const RESOURCE = 'wind_tunnel';
+const RESOURCE = 'cnc';
 const DAY_NAMES = ['', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
 const MONTH_NAMES = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
 let currentMonday = getMonday(new Date());
@@ -188,7 +200,8 @@ async function loadWeek() {
     if (!res.ok) throw new Error('Failed');
     const data = await res.json();
 
-    document.getElementById('weekLabel').textContent = formatDate(data.monday) + ' — ' + formatDate(data.friday);
+    const fri = data.friday;
+    document.getElementById('weekLabel').textContent = formatDate(data.monday) + ' — ' + formatDate(fri);
 
     const cal = document.getElementById('calendar');
     const schedule = data.schedule;
@@ -235,6 +248,9 @@ function openBooking(date, time) {
   document.getElementById('mCourse').value = '';
   document.getElementById('mStream').value = '';
   document.getElementById('mTeam').value = '';
+  document.getElementById('mFileInput').value = '';
+  document.getElementById('mFileName').textContent = 'Choose a file...';
+  document.getElementById('mFileLabel').classList.remove('has-file');
   document.getElementById('mBookBtn').disabled = false;
   document.getElementById('mBookBtn').textContent = 'Book Slot';
   document.getElementById('bookingModal').classList.add('open');
@@ -245,11 +261,25 @@ function closeModal() {
   document.getElementById('bookingModal').classList.remove('open');
 }
 
+function updateModalFile() {
+  const input = document.getElementById('mFileInput');
+  const label = document.getElementById('mFileLabel');
+  const nameEl = document.getElementById('mFileName');
+  if (input.files.length > 0) {
+    nameEl.textContent = input.files[0].name + ' (' + (input.files[0].size / 1024 / 1024).toFixed(1) + ' MB)';
+    label.classList.add('has-file');
+  } else {
+    nameEl.textContent = 'Choose a file...';
+    label.classList.remove('has-file');
+  }
+}
+
 async function confirmBooking() {
   if (!pendingSlot) return;
   const course = document.getElementById('mCourse').value;
   const stream = document.getElementById('mStream').value.trim();
   const team = document.getElementById('mTeam').value.trim();
+  const fileInput = document.getElementById('mFileInput');
 
   if (!course) { showToast('Select a course', true); return; }
   if (!stream) { showToast('Enter timetable stream', true); return; }
@@ -266,6 +296,7 @@ async function confirmBooking() {
   fd.append('courseStream', course);
   fd.append('timetableStream', stream);
   fd.append('team', team);
+  if (fileInput.files.length > 0) fd.append('file', fileInput.files[0]);
 
   try {
     const res = await fetch('/api/slots', { method: 'POST', body: fd });

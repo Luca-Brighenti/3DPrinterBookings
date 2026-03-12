@@ -146,6 +146,30 @@
   .checklist-btn.secondary { background:var(--surface-raised); color:var(--text-muted); border:1px solid var(--border); }
   .checklist-btn.secondary:hover { color:var(--text-secondary); border-color:var(--border-hover); }
 
+  /* ── Board Tabs ── */
+  .board-tabs { display:flex; gap:2px; margin-bottom:0.85rem; padding:3px; background:var(--surface-raised); border:1px solid var(--border); border-radius:var(--radius-sm); width:max-content; }
+  .board-tab { font-family:var(--mono); font-size:0.62rem; font-weight:700; letter-spacing:0.05em; text-transform:uppercase; border:none; background:transparent; color:var(--text-muted); padding:0.45rem 0.8rem; border-radius:var(--radius-xs); cursor:pointer; transition:all 0.12s ease; }
+  .board-tab:hover { color:var(--text-secondary); background:var(--surface-overlay); }
+  .board-tab.active { color:var(--accent); background:var(--surface); }
+  .board-content { display:none; }
+  .board-content.active { display:block; }
+
+  /* ── Ready Board ── */
+  .ready-card { background:var(--surface); border:1px solid rgba(16,185,129,0.2); border-radius:var(--radius); padding:1.5rem; position:relative; overflow:hidden; }
+  .ready-card::before { content:''; position:absolute; top:0; left:0; right:0; height:2px; background:linear-gradient(90deg, var(--emerald), #34d399, var(--emerald)); }
+  .ready-header { display:flex; align-items:center; gap:0.65rem; margin-bottom:1rem; }
+  .ready-icon { width:32px; height:32px; border-radius:var(--radius-xs); background:var(--emerald-dim); display:flex; align-items:center; justify-content:center; font-size:1rem; flex-shrink:0; }
+  .ready-header-title { font-size:1rem; font-weight:800; color:var(--emerald); letter-spacing:-0.01em; }
+  .ready-header-sub { font-family:var(--mono); font-size:0.58rem; font-weight:500; color:var(--text-muted); margin-top:2px; letter-spacing:0.06em; }
+  .ready-list { display:flex; flex-direction:column; gap:0.5rem; }
+  .ready-row { background:var(--surface-raised); border:1px solid var(--border); border-left:3px solid var(--emerald); border-radius:var(--radius-sm); padding:0.75rem 1rem; display:grid; grid-template-columns:minmax(90px,auto) 1fr auto auto; align-items:center; gap:0.85rem; transition:all 0.12s ease; }
+  .ready-row:hover { border-color:rgba(16,185,129,0.3); background:var(--surface-overlay); transform:translateX(2px); }
+  .ready-team { font-size:0.82rem; font-weight:700; white-space:nowrap; }
+  .ready-file { font-family:var(--mono); font-size:0.62rem; font-weight:500; color:var(--text-tertiary); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .ready-timer { font-family:var(--mono); font-size:0.64rem; font-weight:700; color:var(--emerald); background:var(--emerald-dim); padding:4px 9px; border-radius:var(--radius-xs); white-space:nowrap; }
+  .ready-timer.overdue { color:var(--rose); background:var(--rose-dim); }
+  .ready-date { font-family:var(--mono); font-size:0.58rem; font-weight:600; color:var(--text-muted); white-space:nowrap; }
+
   /* ── Rejection Board ── */
   .rejected-section { margin-bottom:2rem; }
   .rejected-card { background:var(--surface); border:1px solid rgba(244,63,94,0.15); border-radius:var(--radius); padding:1.5rem; position:relative; overflow:hidden; }
@@ -192,8 +216,12 @@
     .fleet-stats { gap:0.6rem; padding:0.5rem 0.65rem; }
     .fleet-divider { display:none; }
     .rejected-card { padding:1rem; }
+    .ready-card { padding:1rem; }
+    .ready-row { grid-template-columns:1fr; gap:0.4rem; padding:0.65rem 0.85rem; }
     .rejected-row { grid-template-columns:1fr; gap:0.4rem; padding:0.65rem 0.85rem; }
     .rejected-reason { max-width:none; white-space:normal; }
+    .board-tabs { width:100%; }
+    .board-tab { flex:1; text-align:center; }
     .toast { font-size:0.68rem; padding:0.55rem 0.85rem; max-width:90vw; white-space:normal; text-align:center; }
     .checklist-box { margin:1rem; padding:1.25rem; }
     .checklist-actions { flex-direction:column; }
@@ -220,6 +248,7 @@
     <a href="/" class="nav-link active">3D Printing</a>
     <a href="/laser" class="nav-link">Laser Cutter</a>
     <a href="/windtunnel" class="nav-link">Wind Tunnel</a>
+    <a href="/cnc" class="nav-link">CNC</a>
   </div>
 </nav>
 
@@ -313,17 +342,37 @@
     </div>
   </div>
 
-  <!-- Rejection Board -->
+  <!-- Ready + Rejection Boards -->
   <div class="rejected-section">
-    <div class="rejected-card">
-      <div class="rejected-header">
-        <div class="rejected-icon">&#10007;</div>
-        <div class="rejected-header-text">
-          <div class="rejected-header-title">Rejection Board</div>
-          <div class="rejected-header-sub">Recently rejected prints — check why and resubmit</div>
+    <div class="board-tabs">
+      <button class="board-tab active" id="boardTabReady" onclick="switchBoardTab('ready')">Ready for Collection</button>
+      <button class="board-tab" id="boardTabRejected" onclick="switchBoardTab('rejected')">Rejection Board</button>
+    </div>
+
+    <div class="board-content active" id="board-ready">
+      <div class="ready-card">
+        <div class="ready-header">
+          <div class="ready-icon">&#10003;</div>
+          <div class="rejected-header-text">
+            <div class="ready-header-title">Ready for Collection</div>
+            <div class="ready-header-sub">Collect within 48 hours of completion</div>
+          </div>
         </div>
+        <div class="ready-list" id="readyList"><div class="empty-msg">Loading...</div></div>
       </div>
-      <div class="rejected-list" id="rejectedList"><div class="empty-msg">Loading...</div></div>
+    </div>
+
+    <div class="board-content" id="board-rejected">
+      <div class="rejected-card">
+        <div class="rejected-header">
+          <div class="rejected-icon">&#10007;</div>
+          <div class="rejected-header-text">
+            <div class="rejected-header-title">Rejection Board</div>
+            <div class="rejected-header-sub">Recently rejected prints — check why and resubmit</div>
+          </div>
+        </div>
+        <div class="rejected-list" id="rejectedList"><div class="empty-msg">Loading...</div></div>
+      </div>
     </div>
   </div>
 
@@ -361,11 +410,14 @@
 let printers = [];
 let bookings = [];
 let rejected = [];
+let readyForCollection = [];
 let selectedDuration = 1;
+let boardTab = 'ready';
 
 async function init() {
-  await Promise.all([loadPrinters(), loadBookings(), loadRejected()]);
+  await Promise.all([loadPrinters(), loadBookings(), loadRejected(), loadReadyForCollection()]);
   setInterval(refresh, 30000);
+  setInterval(updateCountdowns, 1000);
 }
 
 async function loadPrinters() {
@@ -395,7 +447,24 @@ async function loadRejected() {
   } catch (err) { console.error('Failed to load rejected:', err); }
 }
 
-async function refresh() { await Promise.all([loadPrinters(), loadBookings(), loadRejected()]); }
+async function loadReadyForCollection() {
+  try {
+    const res = await fetch('/api/bookings/ready');
+    if (!res.ok) throw new Error('Server error');
+    readyForCollection = await res.json();
+    renderReadyForCollection();
+  } catch (err) { console.error('Failed to load ready-for-collection:', err); }
+}
+
+async function refresh() { await Promise.all([loadPrinters(), loadBookings(), loadRejected(), loadReadyForCollection()]); }
+
+function switchBoardTab(tab) {
+  boardTab = tab;
+  document.getElementById('boardTabReady').classList.toggle('active', tab === 'ready');
+  document.getElementById('boardTabRejected').classList.toggle('active', tab === 'rejected');
+  document.getElementById('board-ready').classList.toggle('active', tab === 'ready');
+  document.getElementById('board-rejected').classList.toggle('active', tab === 'rejected');
+}
 
 function renderPrinters() {
   const grid = document.getElementById('printerGrid');
@@ -448,6 +517,46 @@ function renderRejected() {
       '<div class="rejected-date">' + esc(r.booking_date) + '</div>' +
     '</div>';
   }).join('');
+}
+
+function formatCountdown(msRemaining) {
+  if (msRemaining <= 0) return 'Overdue';
+  const totalSeconds = Math.floor(msRemaining / 1000);
+  const days = Math.floor(totalSeconds / 86400);
+  const hours = Math.floor((totalSeconds % 86400) / 3600);
+  const mins = Math.floor((totalSeconds % 3600) / 60);
+  return days + 'd ' + hours + 'h ' + mins + 'm left';
+}
+
+function renderReadyForCollection() {
+  const list = document.getElementById('readyList');
+  if (readyForCollection.length === 0) {
+    list.innerHTML = '<div class="empty-msg">No prints currently ready for collection</div>';
+    return;
+  }
+  list.innerHTML = readyForCollection.map(r => {
+    const dueMs = Number(r.due_at_ms || 0);
+    const now = Date.now();
+    const text = formatCountdown(dueMs - now);
+    const timerClass = (dueMs - now) <= 0 ? 'ready-timer overdue' : 'ready-timer';
+    return '<div class="ready-row">' +
+      '<div class="ready-team">' + esc(r.timetable_stream) + ' — ' + esc(r.team) + '</div>' +
+      '<div class="ready-file">' + esc(r.project || '') + (r.file_original_name ? ' (' + esc(r.file_original_name) + ')' : '') + '</div>' +
+      '<div class="' + timerClass + '" data-due-ms="' + dueMs + '">' + text + '</div>' +
+      '<div class="ready-date">Ready: ' + esc(r.completed_date) + '</div>' +
+    '</div>';
+  }).join('');
+}
+
+function updateCountdowns() {
+  const timers = document.querySelectorAll('[data-due-ms]');
+  const now = Date.now();
+  for (const el of timers) {
+    const dueMs = Number(el.getAttribute('data-due-ms'));
+    const remaining = dueMs - now;
+    el.textContent = formatCountdown(remaining);
+    el.classList.toggle('overdue', remaining <= 0);
+  }
 }
 
 function selectDuration(el) {

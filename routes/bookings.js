@@ -100,6 +100,30 @@ router.get('/rejected', async (_req, res) => {
   }
 });
 
+router.get('/ready', async (_req, res) => {
+  try {
+    const { rows } = await pool.query(`
+      SELECT
+        b.id,
+        b.timetable_stream,
+        b.team,
+        b.project,
+        b.file_original_name,
+        FLOOR(EXTRACT(EPOCH FROM COALESCE(b.completed_at, b.created_at)) * 1000)::bigint AS completed_at_ms,
+        FLOOR(EXTRACT(EPOCH FROM (COALESCE(b.completed_at, b.created_at) + INTERVAL '48 hours')) * 1000)::bigint AS due_at_ms,
+        TO_CHAR(COALESCE(b.completed_at, b.created_at), 'DD Mon') AS completed_date
+      FROM bookings b
+      WHERE b.status = 'completed'
+      ORDER BY COALESCE(b.completed_at, b.created_at) DESC
+      LIMIT 100
+    `);
+    res.json(rows);
+  } catch (err) {
+    console.error('Error fetching ready-for-collection bookings:', err);
+    res.status(500).json({ error: 'Failed to fetch ready-for-collection bookings' });
+  }
+});
+
 router.post(
   '/',
   bookingSubmitLimiter,

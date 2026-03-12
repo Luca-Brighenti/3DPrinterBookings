@@ -55,6 +55,10 @@ app.get('/windtunnel', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'windtunnel.html'));
 });
 
+app.get('/cnc', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'cnc.html'));
+});
+
 app.get('/admin', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'admin.html'));
 });
