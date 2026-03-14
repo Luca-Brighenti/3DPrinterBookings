@@ -56,7 +56,6 @@ async function initDB() {
         status TEXT NOT NULL DEFAULT 'queued',
         reject_reason TEXT,
         completed_at TIMESTAMP,
-        collected_at TIMESTAMP,
         created_at TIMESTAMP DEFAULT NOW()
       )
     `);
@@ -79,7 +78,6 @@ async function initDB() {
     await client.query('ALTER TABLE bookings ADD COLUMN IF NOT EXISTS status TEXT DEFAULT \'queued\'');
     await client.query('ALTER TABLE bookings ADD COLUMN IF NOT EXISTS reject_reason TEXT');
     await client.query('ALTER TABLE bookings ADD COLUMN IF NOT EXISTS completed_at TIMESTAMP');
-    await client.query('ALTER TABLE bookings ADD COLUMN IF NOT EXISTS collected_at TIMESTAMP');
     await client.query('ALTER TABLE bookings ADD COLUMN IF NOT EXISTS created_at TIMESTAMP DEFAULT NOW()');
 
     const hasLegacyStream = await columnExists(client, 'bookings', 'stream');
@@ -167,7 +165,6 @@ async function initDB() {
     await client.query('CREATE INDEX IF NOT EXISTS idx_bookings_archive_order ON bookings(status, created_at DESC)');
     await client.query('CREATE INDEX IF NOT EXISTS idx_bookings_status ON bookings(status)');
     await client.query('CREATE INDEX IF NOT EXISTS idx_bookings_created_at ON bookings(created_at DESC)');
-    await client.query('CREATE INDEX IF NOT EXISTS idx_bookings_collection_ready ON bookings(completed_at DESC) WHERE status = \'completed\' AND collected_at IS NULL');
 
     // Drop old v1 indexes that no longer apply.
     await client.query('DROP INDEX IF EXISTS idx_one_active_per_printer');
@@ -213,6 +210,104 @@ async function initDB() {
       )
     `);
 
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS cnc_bookings (
+        id SERIAL PRIMARY KEY,
+        course_stream TEXT NOT NULL,
+        timetable_stream TEXT NOT NULL,
+        team TEXT NOT NULL,
+        project TEXT NOT NULL,
+        top_file_path TEXT,
+        top_file_original_name TEXT,
+        top_file_size INTEGER,
+        top_file_mime TEXT,
+        bottom_file_path TEXT,
+        bottom_file_original_name TEXT,
+        bottom_file_size INTEGER,
+        bottom_file_mime TEXT,
+        leading_file_path TEXT,
+        leading_file_original_name TEXT,
+        leading_file_size INTEGER,
+        leading_file_mime TEXT,
+        storage_provider TEXT NOT NULL DEFAULT 'local',
+        status TEXT NOT NULL DEFAULT 'queued',
+        reject_reason TEXT,
+        is_legacy BOOLEAN NOT NULL DEFAULT FALSE,
+        legacy_note TEXT,
+        source_slot_booking_id INTEGER,
+        completed_at TIMESTAMP,
+        collected_at TIMESTAMP,
+        created_at TIMESTAMP DEFAULT NOW()
+      )
+    `);
+
+    await client.query('ALTER TABLE cnc_bookings ADD COLUMN IF NOT EXISTS course_stream TEXT');
+    await client.query('ALTER TABLE cnc_bookings ADD COLUMN IF NOT EXISTS timetable_stream TEXT');
+    await client.query('ALTER TABLE cnc_bookings ADD COLUMN IF NOT EXISTS team TEXT');
+    await client.query('ALTER TABLE cnc_bookings ADD COLUMN IF NOT EXISTS project TEXT');
+    await client.query('ALTER TABLE cnc_bookings ADD COLUMN IF NOT EXISTS top_file_path TEXT');
+    await client.query('ALTER TABLE cnc_bookings ADD COLUMN IF NOT EXISTS top_file_original_name TEXT');
+    await client.query('ALTER TABLE cnc_bookings ADD COLUMN IF NOT EXISTS top_file_size INTEGER');
+    await client.query('ALTER TABLE cnc_bookings ADD COLUMN IF NOT EXISTS top_file_mime TEXT');
+    await client.query('ALTER TABLE cnc_bookings ADD COLUMN IF NOT EXISTS bottom_file_path TEXT');
+    await client.query('ALTER TABLE cnc_bookings ADD COLUMN IF NOT EXISTS bottom_file_original_name TEXT');
+    await client.query('ALTER TABLE cnc_bookings ADD COLUMN IF NOT EXISTS bottom_file_size INTEGER');
+    await client.query('ALTER TABLE cnc_bookings ADD COLUMN IF NOT EXISTS bottom_file_mime TEXT');
+    await client.query('ALTER TABLE cnc_bookings ADD COLUMN IF NOT EXISTS leading_file_path TEXT');
+    await client.query('ALTER TABLE cnc_bookings ADD COLUMN IF NOT EXISTS leading_file_original_name TEXT');
+    await client.query('ALTER TABLE cnc_bookings ADD COLUMN IF NOT EXISTS leading_file_size INTEGER');
+    await client.query('ALTER TABLE cnc_bookings ADD COLUMN IF NOT EXISTS leading_file_mime TEXT');
+    await client.query('ALTER TABLE cnc_bookings ADD COLUMN IF NOT EXISTS storage_provider TEXT DEFAULT \'local\'');
+    await client.query('ALTER TABLE cnc_bookings ADD COLUMN IF NOT EXISTS status TEXT DEFAULT \'queued\'');
+    await client.query('ALTER TABLE cnc_bookings ADD COLUMN IF NOT EXISTS reject_reason TEXT');
+    await client.query('ALTER TABLE cnc_bookings ADD COLUMN IF NOT EXISTS is_legacy BOOLEAN DEFAULT FALSE');
+    await client.query('ALTER TABLE cnc_bookings ADD COLUMN IF NOT EXISTS legacy_note TEXT');
+    await client.query('ALTER TABLE cnc_bookings ADD COLUMN IF NOT EXISTS source_slot_booking_id INTEGER');
+    await client.query('ALTER TABLE cnc_bookings ADD COLUMN IF NOT EXISTS completed_at TIMESTAMP');
+    await client.query('ALTER TABLE cnc_bookings ADD COLUMN IF NOT EXISTS collected_at TIMESTAMP');
+    await client.query('ALTER TABLE cnc_bookings ADD COLUMN IF NOT EXISTS created_at TIMESTAMP DEFAULT NOW()');
+    await client.query(`
+      UPDATE cnc_bookings
+      SET status = CASE
+        WHEN status IN ('queued', 'completed', 'rejected', 'collected') THEN status
+        ELSE 'queued'
+      END
+      WHERE status IS NULL OR status NOT IN ('queued', 'completed', 'rejected', 'collected')
+    `);
+    await client.query(`
+      UPDATE cnc_bookings
+      SET completed_at = created_at
+      WHERE status = 'completed' AND completed_at IS NULL
+    `);
+    await client.query('ALTER TABLE cnc_bookings ALTER COLUMN storage_provider SET DEFAULT \'local\'').catch(() => {});
+    await client.query('ALTER TABLE cnc_bookings ALTER COLUMN status SET DEFAULT \'queued\'').catch(() => {});
+    await client.query('ALTER TABLE cnc_bookings ALTER COLUMN created_at SET DEFAULT NOW()').catch(() => {});
+    await client.query('ALTER TABLE cnc_bookings ALTER COLUMN course_stream SET NOT NULL').catch(() => {});
+    await client.query('ALTER TABLE cnc_bookings ALTER COLUMN timetable_stream SET NOT NULL').catch(() => {});
+    await client.query('ALTER TABLE cnc_bookings ALTER COLUMN team SET NOT NULL').catch(() => {});
+    await client.query('ALTER TABLE cnc_bookings ALTER COLUMN project SET NOT NULL').catch(() => {});
+    await client.query('ALTER TABLE cnc_bookings ALTER COLUMN storage_provider SET NOT NULL').catch(() => {});
+    await client.query('ALTER TABLE cnc_bookings ALTER COLUMN status SET NOT NULL').catch(() => {});
+    await client.query('ALTER TABLE cnc_bookings ALTER COLUMN is_legacy SET DEFAULT FALSE').catch(() => {});
+    await client.query('UPDATE cnc_bookings SET is_legacy = FALSE WHERE is_legacy IS NULL');
+    await client.query('ALTER TABLE cnc_bookings ALTER COLUMN is_legacy SET NOT NULL').catch(() => {});
+    await client.query('CREATE INDEX IF NOT EXISTS idx_cnc_bookings_status_created ON cnc_bookings(status, created_at DESC)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_cnc_bookings_queue_order ON cnc_bookings(created_at) WHERE status = \'queued\'');
+    await client.query('CREATE UNIQUE INDEX IF NOT EXISTS idx_cnc_bookings_source_slot ON cnc_bookings(source_slot_booking_id) WHERE source_slot_booking_id IS NOT NULL');
+
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS app_settings (
+        key TEXT PRIMARY KEY,
+        value TEXT NOT NULL,
+        updated_at TIMESTAMP DEFAULT NOW()
+      )
+    `);
+    await client.query(
+      `INSERT INTO app_settings (key, value)
+       VALUES ('cnc_live', 'false')
+       ON CONFLICT (key) DO NOTHING`
+    );
+
     await client.query('ALTER TABLE slot_bookings ADD COLUMN IF NOT EXISTS resource_type TEXT');
     await client.query('ALTER TABLE slot_bookings ADD COLUMN IF NOT EXISTS slot_date DATE');
     await client.query('ALTER TABLE slot_bookings ADD COLUMN IF NOT EXISTS slot_time TIME');
@@ -248,8 +343,7 @@ async function initDB() {
         FROM slot_bookings
         WHERE status = 'booked'
       )
-      UPDATE slot_bookings
-      SET status = 'cancelled'
+      DELETE FROM slot_bookings
       WHERE id IN (SELECT id FROM ranked WHERE rn > 1)
     `);
     await client.query(`
@@ -276,14 +370,61 @@ async function initDB() {
       ON slot_bookings(resource_type, slot_date, slot_time)
       WHERE status = 'booked'
     `).catch(() => {});
-    await client.query(`
-      CREATE UNIQUE INDEX IF NOT EXISTS idx_slot_unique_team_booked
-      ON slot_bookings(resource_type, LOWER(timetable_stream), LOWER(team))
-      WHERE status = 'booked'
-    `).catch(() => {});
+    await client.query('DROP INDEX IF EXISTS idx_slot_unique_team_booked').catch(() => {});
     await client.query('CREATE INDEX IF NOT EXISTS idx_slot_bookings_resource_date ON slot_bookings(resource_type, slot_date)');
     await client.query('CREATE INDEX IF NOT EXISTS idx_slot_bookings_status ON slot_bookings(status)');
     await client.query('CREATE INDEX IF NOT EXISTS idx_slot_bookings_created_at ON slot_bookings(created_at DESC)');
+
+    await client.query(`
+      INSERT INTO cnc_bookings (
+        course_stream,
+        timetable_stream,
+        team,
+        project,
+        top_file_path, top_file_original_name, top_file_size, top_file_mime,
+        bottom_file_path, bottom_file_original_name, bottom_file_size, bottom_file_mime,
+        leading_file_path, leading_file_original_name, leading_file_size, leading_file_mime,
+        storage_provider,
+        status,
+        reject_reason,
+        is_legacy,
+        legacy_note,
+        source_slot_booking_id,
+        completed_at,
+        created_at
+      )
+      SELECT
+        COALESCE(NULLIF(s.course_stream, ''), 'Morphing Wing') AS course_stream,
+        COALESCE(NULLIF(s.timetable_stream, ''), 'Unknown') AS timetable_stream,
+        COALESCE(NULLIF(s.team, ''), 'Unknown Team') AS team,
+        COALESCE(NULLIF(s.file_original_name, ''), 'Legacy CNC Slot Booking') AS project,
+        NULL, NULL, NULL, NULL,
+        NULL, NULL, NULL, NULL,
+        s.file_path, s.file_original_name, s.file_size, s.file_mime,
+        COALESCE(NULLIF(s.storage_provider, ''), 'local') AS storage_provider,
+        CASE
+          WHEN s.status = 'booked' THEN 'queued'
+          WHEN s.status = 'completed' THEN 'completed'
+          WHEN s.status = 'cancelled' THEN 'rejected'
+          ELSE 'queued'
+        END AS status,
+        CASE
+          WHEN s.status = 'cancelled' THEN 'Legacy CNC time-slot booking (cancelled in old system)'
+          ELSE NULL
+        END AS reject_reason,
+        TRUE AS is_legacy,
+        'OLD BOOKING: Migrated from the old CNC time-slot system. Files were optional previously.' AS legacy_note,
+        s.id AS source_slot_booking_id,
+        CASE WHEN s.status = 'completed' THEN COALESCE(s.created_at, NOW()) ELSE NULL END AS completed_at,
+        COALESCE(s.created_at, NOW()) AS created_at
+      FROM slot_bookings s
+      WHERE s.resource_type = 'cnc'
+        AND NOT EXISTS (
+          SELECT 1
+          FROM cnc_bookings c
+          WHERE c.source_slot_booking_id = s.id
+        )
+    `);
 
     console.log('Database initialized');
   } finally {

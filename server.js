@@ -11,6 +11,7 @@ const { getStorageSummary } = require('./storage');
 const bookingsRouter = require('./routes/bookings');
 const printersRouter = require('./routes/printers');
 const slotsRouter = require('./routes/slots');
+const cncRouter = require('./routes/cnc');
 const adminRouter = require('./routes/admin');
 
 const app = express();
@@ -41,6 +42,7 @@ app.use(express.static(path.join(__dirname, 'public'), {
 app.use('/api/bookings', bookingsRouter);
 app.use('/api/printers', printersRouter);
 app.use('/api/slots', slotsRouter);
+app.use('/api/cnc', cncRouter);
 app.use('/api/admin', adminRouter);
 
 app.get('/', (req, res) => {

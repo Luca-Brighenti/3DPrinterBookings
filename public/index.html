@@ -162,7 +162,7 @@
   .ready-header-title { font-size:1rem; font-weight:800; color:var(--emerald); letter-spacing:-0.01em; }
   .ready-header-sub { font-family:var(--mono); font-size:0.58rem; font-weight:500; color:var(--text-muted); margin-top:2px; letter-spacing:0.06em; }
   .ready-list { display:flex; flex-direction:column; gap:0.5rem; }
-  .ready-row { background:var(--surface-raised); border:1px solid var(--border); border-left:3px solid var(--emerald); border-radius:var(--radius-sm); padding:0.75rem 1rem; display:grid; grid-template-columns:minmax(90px,auto) 1fr auto auto auto; align-items:center; gap:0.85rem; transition:all 0.12s ease; }
+  .ready-row { background:var(--surface-raised); border:1px solid var(--border); border-left:3px solid var(--emerald); border-radius:var(--radius-sm); padding:0.75rem 1rem; display:grid; grid-template-columns:minmax(90px,auto) 1fr auto auto; align-items:center; gap:0.85rem; transition:all 0.12s ease; }
   .ready-row:hover { border-color:rgba(16,185,129,0.3); background:var(--surface-overlay); transform:translateX(2px); }
   .ready-team { font-size:0.82rem; font-weight:700; white-space:nowrap; }
   .ready-file { font-family:var(--mono); font-size:0.62rem; font-weight:500; color:var(--text-tertiary); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
@@ -183,13 +183,9 @@
   .rejected-row { background:var(--surface-raised); border:1px solid var(--border); border-left:3px solid var(--rose); border-radius:var(--radius-sm); padding:0.75rem 1rem; display:grid; grid-template-columns:minmax(90px,auto) 1fr auto auto; align-items:center; gap:0.85rem; transition:all 0.12s ease; }
   .rejected-row:hover { border-color:rgba(244,63,94,0.25); background:var(--surface-overlay); transform:translateX(2px); }
   .rejected-team { font-size:0.82rem; font-weight:700; white-space:nowrap; }
-  .rejected-reason { font-family:var(--mono); font-size:0.68rem; font-weight:500; color:var(--rose); background:var(--rose-dim); padding:3px 8px; border-radius:var(--radius-xs); word-break:break-word; white-space:normal; }
+  .rejected-reason { font-family:var(--mono); font-size:0.68rem; font-weight:500; color:var(--rose); background:var(--rose-dim); padding:3px 8px; border-radius:var(--radius-xs); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width:320px; }
   .rejected-file { font-family:var(--mono); font-size:0.62rem; font-weight:500; color:var(--text-tertiary); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
   .rejected-date { font-family:var(--mono); font-size:0.58rem; font-weight:600; color:var(--text-muted); white-space:nowrap; }
-
-  .collect-btn { font-family:var(--mono); font-size:0.6rem; font-weight:700; padding:5px 12px; border-radius:var(--radius-xs); border:1px solid rgba(16,185,129,0.3); background:var(--emerald-dim); color:var(--emerald); cursor:pointer; text-transform:uppercase; letter-spacing:0.04em; transition:all 0.15s ease; white-space:nowrap; }
-  .collect-btn:hover { background:var(--emerald); color:#000; box-shadow:0 2px 8px rgba(16,185,129,0.3); }
-  .collect-btn:disabled { opacity:0.35; cursor:not-allowed; }
 
   .empty-msg { text-align:center; padding:1.75rem; color:var(--text-muted); font-size:0.78rem; font-family:var(--mono); font-weight:500; }
 
@@ -222,7 +218,6 @@
     .rejected-card { padding:1rem; }
     .ready-card { padding:1rem; }
     .ready-row { grid-template-columns:1fr; gap:0.4rem; padding:0.65rem 0.85rem; }
-    .collect-btn { width:100%; text-align:center; }
     .rejected-row { grid-template-columns:1fr; gap:0.4rem; padding:0.65rem 0.85rem; }
     .rejected-reason { max-width:none; white-space:normal; }
     .board-tabs { width:100%; }
@@ -316,9 +311,9 @@
               <span>&#128193;</span>
               <span id="fileName">Choose a file...</span>
             </div>
-            <input type="file" id="fileInput" accept=".3mf,.stl,.obj,.step,.stp,.gcode" onchange="updateFileName()">
+            <input type="file" id="fileInput" accept=".stl" onchange="updateFileName()">
           </div>
-          <div class="file-hint">.3mf recommended — .stl, .obj, .step, .gcode</div>
+          <div class="file-hint">STL files only (.stl)</div>
         </div>
         <div class="form-row" style="margin-bottom:0.75rem">
           <div class="form-group" style="margin-bottom:0">
@@ -396,6 +391,10 @@
       <div class="check-item">
         <input type="checkbox" id="chkFileName">
         <label for="chkFileName">My file name contains my stream and team name</label>
+      </div>
+      <div class="check-item">
+        <input type="checkbox" id="chkFileType">
+        <label for="chkFileType">I confirm my uploaded file is .stl format</label>
       </div>
       <div class="check-item">
         <input type="checkbox" id="chkPickup">
@@ -544,12 +543,11 @@ function renderReadyForCollection() {
     const now = Date.now();
     const text = formatCountdown(dueMs - now);
     const timerClass = (dueMs - now) <= 0 ? 'ready-timer overdue' : 'ready-timer';
-    return '<div class="ready-row" id="ready-' + r.id + '">' +
+    return '<div class="ready-row">' +
       '<div class="ready-team">' + esc(r.timetable_stream) + ' — ' + esc(r.team) + '</div>' +
       '<div class="ready-file">' + esc(r.project || '') + (r.file_original_name ? ' (' + esc(r.file_original_name) + ')' : '') + '</div>' +
       '<div class="' + timerClass + '" data-due-ms="' + dueMs + '">' + text + '</div>' +
       '<div class="ready-date">Ready: ' + esc(r.completed_date) + '</div>' +
-      '<button class="collect-btn" onclick="markCollected(' + r.id + ')">Collected</button>' +
     '</div>';
   }).join('');
 }
@@ -596,10 +594,13 @@ function openChecklist() {
   if (!timetableStream) { showToast('Enter a timetable stream', true); return; }
   if (!team) { showToast('Enter a team / group name', true); return; }
   if (!project) { showToast('Enter a project name', true); return; }
-  if (!fileInput.files.length) { showToast('Upload a print file (.3mf recommended)', true); return; }
+  if (!fileInput.files.length) { showToast('Upload an STL file (.stl)', true); return; }
+  const selectedName = (fileInput.files[0].name || '').toLowerCase();
+  if (!selectedName.endsWith('.stl')) { showToast('Only .stl files are allowed', true); return; }
 
   document.getElementById('chkDuration').checked = false;
   document.getElementById('chkFileName').checked = false;
+  document.getElementById('chkFileType').checked = false;
   document.getElementById('chkPickup').checked = false;
   document.getElementById('checklist').classList.remove('has-error');
   document.getElementById('confirmSubmitBtn').disabled = false;
@@ -614,9 +615,10 @@ function closeChecklist() {
 async function confirmAndSubmit() {
   const chk1 = document.getElementById('chkDuration').checked;
   const chk2 = document.getElementById('chkFileName').checked;
-  const chk3 = document.getElementById('chkPickup').checked;
+  const chk3 = document.getElementById('chkFileType').checked;
+  const chk4 = document.getElementById('chkPickup').checked;
   const checklist = document.getElementById('checklist');
-  if (!chk1 || !chk2 || !chk3) {
+  if (!chk1 || !chk2 || !chk3 || !chk4) {
     checklist.classList.add('has-error');
     showToast('Please tick all checklist items', true);
     return;
@@ -634,6 +636,13 @@ async function confirmAndSubmit() {
   const material = document.getElementById('material').value;
   const notes = document.getElementById('notes').value.trim();
   const fileInput = document.getElementById('fileInput');
+  const selectedName = (fileInput.files[0] && fileInput.files[0].name ? fileInput.files[0].name : '').toLowerCase();
+  if (!selectedName.endsWith('.stl')) {
+    showToast('Only .stl files are allowed', true);
+    btn.disabled = false;
+    btn.textContent = 'Confirm & Submit';
+    return;
+  }
 
   const fd = new FormData();
   fd.append('courseStream', courseStream);
@@ -675,33 +684,6 @@ async function confirmAndSubmit() {
   }
   btn.disabled = false;
   btn.textContent = 'Confirm & Submit';
-}
-
-async function markCollected(id) {
-  const ok = confirm(
-    'Please confirm you have physically collected this print.\n\n' +
-    'Do NOT mark as collected if you have not picked it up. ' +
-    'We check remaining prints against active collection tickets — ' +
-    'falsely marking a print as collected may result in your team being banned from 3D printing.'
-  );
-  if (!ok) return;
-
-  try {
-    const res = await fetch('/api/bookings/' + id + '/collect', {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' }
-    });
-    if (!res.ok) {
-      const err = await res.json();
-      showToast(err.error || 'Failed to mark as collected', true);
-      return;
-    }
-    showToast('Print marked as collected');
-    await loadReadyForCollection();
-  } catch (err) {
-    console.error('Collection error:', err);
-    showToast('Network error — try again', true);
-  }
 }
 
 function esc(s) { if (!s) return ''; const d = document.createElement('div'); d.textContent = s; return d.innerHTML; }

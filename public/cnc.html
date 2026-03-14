@@ -3,110 +3,47 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>MECH PrintLab — CNC Booking</title>
+<title>MECH PrintLab - CNC Booking</title>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
-  :root {
-    --bg:#09090b; --surface:#111114; --surface-raised:#18181b; --surface-overlay:#1f1f23; --surface-bright:#27272a;
-    --border:rgba(255,255,255,0.06); --border-hover:rgba(255,255,255,0.1);
-    --accent:#a78bfa; --accent-bright:#c4b5fd; --accent-dim:rgba(167,139,250,0.15); --accent-subtle:rgba(167,139,250,0.08);
-    --page-accent:#f97316;
-    --emerald:#10b981; --emerald-dim:rgba(16,185,129,0.12);
-    --rose:#f43f5e; --rose-dim:rgba(244,63,94,0.12);
-    --text:#fafafa; --text-secondary:#a1a1aa; --text-tertiary:#71717a; --text-muted:#52525b;
-    --mono:'JetBrains Mono',monospace; --sans:'Inter',-apple-system,BlinkMacSystemFont,sans-serif;
-    --radius:12px; --radius-sm:8px; --radius-xs:6px;
-  }
-  *,*::before,*::after{margin:0;padding:0;box-sizing:border-box}
-  @keyframes fadeIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
-  body{background:var(--bg);color:var(--text);font-family:var(--sans);min-height:100vh;-webkit-font-smoothing:antialiased}
-  body::before{content:'';position:fixed;inset:0;background:radial-gradient(ellipse 80% 50% at 10% 0%,rgba(167,139,250,0.05) 0%,transparent 50%),radial-gradient(ellipse 60% 40% at 90% 100%,rgba(249,115,22,0.03) 0%,transparent 50%);pointer-events:none;z-index:0}
-  ::selection{background:rgba(167,139,250,0.3);color:#fff}
-  ::-webkit-scrollbar{width:6px}::-webkit-scrollbar-track{background:transparent}::-webkit-scrollbar-thumb{background:var(--surface-bright);border-radius:3px}
-
-  .site-nav{background:rgba(9,9,11,0.8);backdrop-filter:blur(20px) saturate(1.2);-webkit-backdrop-filter:blur(20px) saturate(1.2);border-bottom:1px solid var(--border);padding:0 1.5rem;display:flex;align-items:center;justify-content:space-between;height:56px;position:sticky;top:0;z-index:100}
-  .nav-left{display:flex;align-items:center;gap:10px}
-  .nav-left svg{width:32px;height:32px;filter:drop-shadow(0 0 8px rgba(249,115,22,0.4))}
-  .nav-brand{font-weight:800;font-size:1.05rem;letter-spacing:-0.02em;text-decoration:none;color:var(--text)}.nav-brand span{color:var(--page-accent)}
+  :root { --bg:#09090b; --surface:#111114; --surface-raised:#18181b; --surface-overlay:#1f1f23; --border:rgba(255,255,255,.08); --accent:#a78bfa; --accent-bright:#c4b5fd; --emerald:#10b981; --rose:#f43f5e; --text:#fafafa; --text-muted:#71717a; --mono:'JetBrains Mono',monospace; --sans:'Inter',sans-serif; --radius:12px; --radius-sm:8px; --radius-xs:6px; }
+  *{box-sizing:border-box} body{margin:0;background:var(--bg);color:var(--text);font-family:var(--sans)}
+  .site-nav{background:rgba(9,9,11,.82);backdrop-filter:blur(14px);border-bottom:1px solid var(--border);padding:0 1rem;height:56px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:10}
   .nav-links{display:flex;gap:2px;padding:3px;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-sm)}
-  .nav-link{font-family:var(--mono);font-size:0.62rem;font-weight:600;padding:5px 12px;border-radius:var(--radius-xs);color:var(--text-muted);text-decoration:none;transition:all 0.15s;letter-spacing:0.04em;text-transform:uppercase}
-  .nav-link:hover{color:var(--text-secondary);background:var(--surface-raised)}
-  .nav-link.active{color:var(--accent);background:var(--surface-raised)}
-
-  .container{max-width:1200px;margin:0 auto;padding:2rem 1.5rem;position:relative;z-index:1}
-  .section-label{font-family:var(--mono);font-size:0.62rem;font-weight:600;letter-spacing:0.12em;text-transform:uppercase;color:var(--text-muted);margin-bottom:0.35rem}
-  .section-title{font-size:1.25rem;font-weight:800;letter-spacing:-0.02em;margin-bottom:1.25rem}
-
-  .week-nav{display:flex;align-items:center;gap:1rem;margin-bottom:1.25rem;flex-wrap:wrap}
-  .week-btn{background:var(--surface-raised);border:1px solid var(--border);border-radius:var(--radius-xs);color:var(--text-muted);font-family:var(--mono);font-size:0.72rem;font-weight:600;padding:0.45rem 0.85rem;cursor:pointer;transition:all 0.15s}
-  .week-btn:hover{border-color:var(--border-hover);color:var(--text-secondary);background:var(--surface-overlay)}
-  .week-label{font-family:var(--mono);font-size:0.78rem;font-weight:600;color:var(--text-secondary)}
-
-  .calendar{display:grid;grid-template-columns:repeat(4,1fr);gap:0.6rem;margin-bottom:2rem}
-  .day-col{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;animation:fadeIn 0.4s ease backwards}
-  .day-col:nth-child(1){animation-delay:0.03s}.day-col:nth-child(2){animation-delay:0.06s}.day-col:nth-child(3){animation-delay:0.09s}.day-col:nth-child(4){animation-delay:0.12s}
-  .day-header{padding:0.85rem 1rem;border-bottom:1px solid var(--border);background:var(--surface-raised)}
-  .day-name{font-family:var(--mono);font-size:0.78rem;font-weight:700;color:var(--accent);text-transform:uppercase;letter-spacing:0.06em}
-  .day-date{font-family:var(--mono);font-size:0.65rem;font-weight:500;color:var(--text-muted);margin-top:3px}
-  .day-slots{display:flex;flex-direction:column;gap:2px;padding:6px}
-
-  .slot{display:flex;align-items:center;justify-content:space-between;padding:0.6rem 0.85rem;border-radius:var(--radius-xs);font-family:var(--mono);font-size:0.72rem;font-weight:500;transition:all 0.12s;cursor:pointer;min-height:40px}
-  .slot.available{color:var(--text-muted);background:transparent}
-  .slot.available:hover{background:var(--accent-subtle);color:var(--accent-bright)}
-  .slot.booked{background:var(--accent-dim);color:var(--accent-bright);cursor:default}
-  .slot.past{opacity:0.35;cursor:not-allowed;color:var(--text-muted);text-decoration:line-through;text-decoration-color:rgba(255,255,255,0.15)}
-  .slot.past .slot-label{font-size:0.55rem;color:var(--text-muted);opacity:0.7}
-  .slot-time{flex-shrink:0}
-  .slot-team{font-size:0.6rem;font-weight:600;text-align:right;max-width:60%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-
-  .modal-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,0.7);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);z-index:500;align-items:center;justify-content:center}
-  .modal-overlay.open{display:flex}
-  .modal-box{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:1.75rem;width:100%;max-width:420px;position:relative;animation:fadeIn 0.2s ease}
-  .modal-box::before{content:'';position:absolute;top:0;left:0;right:0;height:2px;background:linear-gradient(90deg,var(--accent),var(--accent-bright),var(--accent));border-radius:var(--radius) var(--radius) 0 0}
-  .modal-title{font-size:1rem;font-weight:800;margin-bottom:0.2rem}
-  .modal-sub{font-family:var(--mono);font-size:0.62rem;font-weight:500;color:var(--text-muted);margin-bottom:1.25rem;letter-spacing:0.06em}
-  .form-label{font-family:var(--mono);font-size:0.6rem;font-weight:600;letter-spacing:0.08em;text-transform:uppercase;color:var(--text-tertiary);margin-bottom:0.35rem;display:block}
-  .form-input,.form-select{width:100%;background:var(--surface-raised);border:1px solid var(--border);border-radius:var(--radius-xs);color:var(--text);font-family:var(--sans);font-size:0.85rem;font-weight:500;padding:0.6rem 0.75rem;outline:none;transition:all 0.15s;margin-bottom:0.85rem;-webkit-appearance:none}
-  .form-input:focus,.form-select:focus{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-subtle),0 0 0 1px var(--accent);background:var(--surface-overlay)}
-  .form-input::placeholder{color:var(--text-muted)}
-  .form-select option{background:var(--surface-raised)}
-  .file-upload{position:relative;margin-bottom:0.85rem}
-  .file-upload input[type="file"]{position:absolute;inset:0;opacity:0;cursor:pointer}
-  .file-upload-label{display:flex;align-items:center;gap:0.65rem;background:var(--surface-raised);border:1px dashed var(--border-hover);border-radius:var(--radius-sm);padding:0.7rem 0.85rem;color:var(--text-muted);font-size:0.75rem;font-weight:500;transition:all 0.15s}
-  .file-upload-label:hover{border-color:var(--accent-dim);color:var(--text-secondary);background:var(--surface-overlay)}
-  .file-upload-label.has-file{border-color:var(--emerald);border-style:solid;color:var(--emerald);background:var(--emerald-dim)}
-  .file-hint{font-family:var(--mono);font-size:0.55rem;font-weight:500;color:var(--text-muted);margin-top:-0.5rem;margin-bottom:0.85rem}
-  .modal-actions{display:flex;gap:0.5rem}
-  .modal-btn{font-family:var(--mono);font-size:0.72rem;font-weight:700;padding:0.55rem 1.1rem;border-radius:var(--radius-xs);border:none;cursor:pointer;transition:all 0.15s;text-transform:uppercase;letter-spacing:0.04em}
-  .modal-btn.primary{background:var(--accent);color:#fff}.modal-btn.primary:hover{background:var(--accent-bright);box-shadow:0 4px 12px rgba(167,139,250,0.3)}
-  .modal-btn.secondary{background:var(--surface-raised);color:var(--text-muted);border:1px solid var(--border)}.modal-btn.secondary:hover{color:var(--text-secondary);border-color:var(--border-hover)}
-  .modal-btn:disabled{opacity:0.3;cursor:not-allowed}
-
-  .toast{position:fixed;bottom:1.5rem;left:50%;transform:translateX(-50%) translateY(12px);background:rgba(16,185,129,0.12);backdrop-filter:blur(16px);border:1px solid rgba(16,185,129,0.2);color:var(--emerald);font-family:var(--mono);font-size:0.75rem;font-weight:600;padding:0.7rem 1.25rem;border-radius:var(--radius-sm);opacity:0;transition:all 0.3s cubic-bezier(.4,0,.2,1);pointer-events:none;z-index:9000;white-space:nowrap;box-shadow:0 8px 32px rgba(0,0,0,0.3)}
-  .toast.show{opacity:1;transform:translateX(-50%) translateY(0)}.toast.error{background:rgba(244,63,94,0.12);border-color:rgba(244,63,94,0.2);color:var(--rose)}
-
-  .empty-msg{text-align:center;padding:1.75rem;color:var(--text-muted);font-size:0.78rem;font-family:var(--mono);font-weight:500}
-
-  @media(max-width:700px){
-    .calendar{grid-template-columns:1fr 1fr;gap:0.4rem}
-    .container{padding:1rem}
-    .nav-links{gap:1px}.nav-link{font-size:0.55rem;padding:4px 8px}
-    .section-title{font-size:1.05rem}
-    .modal-box{margin:1rem;padding:1.25rem}
-    .modal-actions{flex-direction:column}.modal-btn{width:100%;text-align:center}
-  }
-  @media(max-width:420px){
-    .calendar{grid-template-columns:1fr}
-  }
-  @media(prefers-reduced-motion:reduce){*,*::before,*::after{animation-duration:0.01ms!important;transition-duration:0.01ms!important}}
+  .nav-link{font-family:var(--mono);font-size:.62rem;padding:5px 11px;border-radius:var(--radius-xs);text-decoration:none;color:var(--text-muted);text-transform:uppercase}
+  .nav-link.active,.nav-link:hover{color:var(--accent);background:var(--surface-raised)}
+  .container{max-width:1220px;margin:0 auto;padding:1.5rem}
+  .live-banner{margin-bottom:1rem;padding:.75rem 1rem;border-radius:var(--radius-sm);font-family:var(--mono);font-size:.75rem;border:1px solid var(--border);background:var(--surface)}
+  .live-banner.live{border-color:rgba(16,185,129,.4);background:rgba(16,185,129,.12);color:var(--emerald)}
+  .live-banner.offline{border-color:rgba(244,63,94,.28);background:rgba(244,63,94,.1);color:var(--rose)}
+  .grid{display:grid;grid-template-columns:390px 1fr;gap:1rem;align-items:start}
+  .card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:1rem}
+  .title{font-weight:800;margin:0 0 .85rem}
+  .label{display:block;font-family:var(--mono);font-size:.6rem;color:var(--text-muted);text-transform:uppercase;margin-bottom:.25rem}
+  .input,.btn{width:100%;border-radius:var(--radius-xs);border:1px solid var(--border)}
+  .input{background:var(--surface-raised);color:var(--text);padding:.6rem .72rem;margin-bottom:.65rem}
+  .input:focus{outline:none;border-color:var(--accent)}
+  .file{margin-bottom:.65rem}
+  .hint{font-family:var(--mono);font-size:.58rem;color:var(--text-muted);margin-top:-.35rem;margin-bottom:.55rem}
+  .btn{cursor:pointer;padding:.7rem .85rem;background:var(--accent);color:#fff;font-weight:700}
+  .btn:hover{background:var(--accent-bright)}
+  .tabs{display:flex;gap:2px;padding:3px;background:var(--surface-raised);border:1px solid var(--border);border-radius:var(--radius-sm);margin-bottom:.8rem;width:max-content}
+  .tab{border:none;background:transparent;color:var(--text-muted);font-family:var(--mono);font-size:.62rem;padding:.45rem .75rem;border-radius:var(--radius-xs);cursor:pointer;text-transform:uppercase}
+  .tab.active,.tab:hover{color:var(--accent);background:var(--surface)}
+  .panel{display:none}.panel.active{display:block}
+  .row{background:var(--surface-raised);border:1px solid var(--border);border-radius:var(--radius-sm);padding:.65rem .8rem;display:grid;grid-template-columns:1fr auto;gap:.6rem;align-items:center;margin-bottom:.45rem}
+  .meta{font-family:var(--mono);font-size:.62rem;color:var(--text-muted)}
+  .legacy-tag{display:inline-block;margin-left:.4rem;padding:2px 6px;border-radius:999px;font-family:var(--mono);font-size:.52rem;font-weight:700;letter-spacing:.04em;background:rgba(245,158,11,.16);color:#f59e0b}
+  .status-btn{border:1px solid var(--border);background:transparent;color:var(--emerald);border-radius:var(--radius-xs);padding:.4rem .55rem;font-family:var(--mono);font-size:.62rem;cursor:pointer}
+  .status-btn:hover{background:rgba(16,185,129,.12)}
+  .timer{font-family:var(--mono);font-size:.62rem;color:var(--emerald)}
+  .timer.overdue{color:var(--rose)}
+  @media (max-width:960px){ .grid{grid-template-columns:1fr} }
 </style>
 </head>
 <body>
 <nav class="site-nav">
-  <div class="nav-left">
-    <svg viewBox="0 0 36 36" fill="none" xmlns="http://www.w3.org/2000/svg"><rect x="4" y="20" width="28" height="3" rx="1" fill="#f97316"/><rect x="8" y="14" width="20" height="7" rx="1" fill="#18181b" stroke="#f97316" stroke-width="1.2"/><rect x="14" y="23" width="8" height="8" rx="1" fill="#111114" stroke="#27272a" stroke-width="1"/><circle cx="18" cy="17" r="2.5" fill="#f97316" opacity="0.7"/><rect x="16.5" y="5" width="3" height="10" rx="1" fill="#f97316" opacity="0.4"/></svg>
-    <a href="/" class="nav-brand">MECH <span>PrintLab</span></a>
-  </div>
+  <strong>MECH PrintLab</strong>
   <div class="nav-links">
     <a href="/" class="nav-link">3D Printing</a>
     <a href="/laser" class="nav-link">Laser Cutter</a>
@@ -116,216 +53,155 @@
 </nav>
 
 <div class="container">
-  <div class="section-label">CNC</div>
-  <div class="section-title">Book a Time Slot</div>
+  <div id="liveBanner" class="live-banner">Checking CNC operator status...</div>
+  <div class="grid">
+    <div class="card">
+      <h3 class="title">Submit CNC Job</h3>
+      <label class="label">Course</label>
+      <select id="courseStream" class="input">
+        <option value="">- Select -</option>
+        <option value="Morphing Wing">Morphing Wing</option>
+      </select>
+      <label class="label">Timetable Stream</label>
+      <input id="timetableStream" class="input" placeholder="e.g. 1A">
+      <label class="label">Team / Group</label>
+      <input id="team" class="input" placeholder="e.g. F">
+      <label class="label">Project Name</label>
+      <input id="project" class="input" placeholder="e.g. wing_rev5">
 
-  <div class="week-nav">
-    <button class="week-btn" onclick="changeWeek(-7)">&larr; Prev Week</button>
-    <div class="week-label" id="weekLabel">Loading...</div>
-    <button class="week-btn" onclick="changeWeek(7)">Next Week &rarr;</button>
-  </div>
+      <label class="label">Top Surface (.step)</label>
+      <input id="topSurfaceFile" class="input file" type="file" accept=".step">
+      <div class="hint">STEP only (.step)</div>
+      <label class="label">Bottom Surface (.step)</label>
+      <input id="bottomSurfaceFile" class="input file" type="file" accept=".step">
+      <div class="hint">STEP only (.step)</div>
+      <label class="label">Leading Edge / Other (.step)</label>
+      <input id="leadingEdgeFile" class="input file" type="file" accept=".step">
+      <div class="hint">STEP only (.step)</div>
 
-  <div class="calendar" id="calendar"><div class="empty-msg" style="grid-column:1/-1">Loading schedule...</div></div>
-</div>
-
-<div class="modal-overlay" id="bookingModal">
-  <div class="modal-box">
-    <div class="modal-title">Book CNC</div>
-    <div class="modal-sub" id="modalSlotLabel">—</div>
-    <label class="form-label">Course</label>
-    <select class="form-select" id="mCourse"><option value="">— Select —</option><option value="Morphing Wing">Morphing Wing</option></select>
-    <label class="form-label">Timetable Stream</label>
-    <input class="form-input" id="mStream" type="text" placeholder="e.g. 1A" autocomplete="off">
-    <label class="form-label">Team / Group</label>
-    <input class="form-input" id="mTeam" type="text" placeholder="e.g. F" autocomplete="off">
-    <label class="form-label">File (optional)</label>
-    <div class="file-upload">
-      <div class="file-upload-label" id="mFileLabel"><span>&#128193;</span><span id="mFileName">Choose a file...</span></div>
-      <input type="file" id="mFileInput" accept=".nc,.tap,.gcode,.step,.stp,.stl,.3mf,.dxf" onchange="updateModalFile()">
+      <button class="btn" id="submitBtn" onclick="submitCnc()">Submit CNC Job</button>
     </div>
-    <div class="file-hint">.nc, .tap, .gcode, .step/.stp, .stl, .3mf, .dxf accepted</div>
-    <div class="modal-actions">
-      <button class="modal-btn primary" id="mBookBtn" onclick="confirmBooking()">Book Slot</button>
-      <button class="modal-btn secondary" onclick="closeModal()">Cancel</button>
+
+    <div>
+      <div class="tabs">
+        <button class="tab active" id="tabQueue" onclick="switchTab('queue')">Queue</button>
+        <button class="tab" id="tabReady" onclick="switchTab('ready')">Collection Window</button>
+        <button class="tab" id="tabRejected" onclick="switchTab('rejected')">Rejection Window</button>
+      </div>
+
+      <div class="panel active card" id="panelQueue"></div>
+      <div class="panel card" id="panelReady"></div>
+      <div class="panel card" id="panelRejected"></div>
     </div>
   </div>
 </div>
-
-<div class="toast" id="toast"></div>
 
 <script>
-const RESOURCE = 'cnc';
-const DAY_NAMES = ['', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
-const MONTH_NAMES = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-let currentMonday = getMonday(new Date());
-let pendingSlot = null;
+let readyRows = [];
+function esc(s){const d=document.createElement('div');d.textContent=s||'';return d.innerHTML;}
+function timeLeft(ms){ if(ms<=0) return 'Overdue'; const s=Math.floor(ms/1000); const d=Math.floor(s/86400); const h=Math.floor((s%86400)/3600); const m=Math.floor((s%3600)/60); return d+'d '+h+'h '+m+'m';}
 
-function padDate(d) {
-  const y = d.getFullYear();
-  const m = String(d.getMonth() + 1).padStart(2, '0');
-  const day = String(d.getDate()).padStart(2, '0');
-  return y + '-' + m + '-' + day;
+function switchTab(tab){
+  const tabs=['queue','ready','rejected'];
+  for(const t of tabs){
+    document.getElementById('tab'+t.charAt(0).toUpperCase()+t.slice(1)).classList.toggle('active', t===tab);
+    document.getElementById('panel'+t.charAt(0).toUpperCase()+t.slice(1)).classList.toggle('active', t===tab);
+  }
 }
 
-function getMonday(d) {
-  const dt = new Date(d);
-  dt.setHours(12, 0, 0, 0);
-  const day = dt.getDay();
-  const diff = dt.getDate() - day + (day === 0 ? -6 : 1);
-  dt.setDate(diff);
-  return padDate(dt);
+async function loadLive(){
+  const banner=document.getElementById('liveBanner');
+  try{
+    const res=await fetch('/api/cnc/live');
+    const d=await res.json();
+    const isLive=!!d.isLive;
+    banner.className='live-banner '+(isLive?'live':'offline');
+    banner.textContent=isLive?'CNC OPERATOR IS LIVE NOW - jobs are actively being worked.':'CNC operator currently offline - you can still submit jobs.';
+  }catch{
+    banner.className='live-banner offline';
+    banner.textContent='Could not load CNC live status.';
+  }
 }
 
-function formatDate(s) {
-  const d = new Date(s + 'T12:00:00');
-  return d.getDate() + ' ' + MONTH_NAMES[d.getMonth()];
+async function loadQueue(){
+  const el=document.getElementById('panelQueue');
+  try{
+    const res=await fetch('/api/cnc');
+    const rows=await res.json();
+    if(!rows.length){ el.innerHTML='<div class="meta">No queued CNC jobs.</div>'; return; }
+    el.innerHTML='<h3 class="title">Queued CNC Jobs</h3><div class="meta" style="margin-bottom:.6rem">Old booking tag means migrated from the previous time-based system (files may be missing).</div>'+rows.map(r=>'<div class="row"><div><strong>'+esc(r.timetable_stream)+' - '+esc(r.team)+(r.is_legacy?'<span class="legacy-tag">OLD BOOKING</span>':'')+'</strong><div class="meta">'+esc(r.project)+' | Top: '+esc(r.top_file_original_name||'—')+' | Bottom: '+esc(r.bottom_file_original_name||'—')+' | Leading: '+esc(r.leading_file_original_name||'—')+(r.is_legacy&&r.legacy_note?' | '+esc(r.legacy_note):'')+'</div></div><div class="meta">'+esc(r.created_str)+'</div></div>').join('');
+  }catch{ el.innerHTML='<div class="meta">Failed to load queue.</div>'; }
 }
 
-function getDayName(s) {
-  const d = new Date(s + 'T12:00:00');
-  return DAY_NAMES[d.getDay()] || '';
-}
-
-function isPast(dateStr, timeStr) {
-  const now = new Date();
-  const slotEnd = new Date(dateStr + 'T' + timeStr + ':00');
-  slotEnd.setMinutes(slotEnd.getMinutes() + 15);
-  return slotEnd <= now;
-}
-
-async function loadWeek() {
-  document.getElementById('weekLabel').textContent = 'Loading...';
-  try {
-    const res = await fetch('/api/slots?type=' + RESOURCE + '&week=' + currentMonday);
-    if (!res.ok) throw new Error('Failed');
-    const data = await res.json();
-
-    const fri = data.friday;
-    document.getElementById('weekLabel').textContent = formatDate(data.monday) + ' — ' + formatDate(fri);
-
-    const cal = document.getElementById('calendar');
-    const schedule = data.schedule;
-    const days = Object.keys(schedule).sort();
-
-    if (days.length === 0) {
-      cal.innerHTML = '<div class="empty-msg" style="grid-column:1/-1">No available slots this week</div>';
-      return;
-    }
-
-    cal.innerHTML = days.map(dateStr => {
-      const slots = schedule[dateStr];
-      let slotsHtml = slots.map(s => {
-        const past = isPast(dateStr, s.time);
-        if (s.booked) {
-          return '<div class="slot booked"><span class="slot-time">' + s.time + '</span><span class="slot-team">' + esc(s.team) + '</span></div>';
-        }
-        if (past) {
-          return '<div class="slot past"><span class="slot-time">' + s.time + '</span><span class="slot-label">Unavailable</span></div>';
-        }
-        return '<div class="slot available" onclick="openBooking(\'' + dateStr + '\',\'' + s.time + '\')"><span class="slot-time">' + s.time + '</span></div>';
-      }).join('');
-
-      return '<div class="day-col">' +
-        '<div class="day-header"><div class="day-name">' + getDayName(dateStr) + '</div><div class="day-date">' + formatDate(dateStr) + '</div></div>' +
-        '<div class="day-slots">' + slotsHtml + '</div></div>';
+async function loadReady(){
+  const el=document.getElementById('panelReady');
+  try{
+    const res=await fetch('/api/cnc/ready');
+    readyRows=await res.json();
+    if(!readyRows.length){ el.innerHTML='<div class="meta">No jobs waiting for collection.</div>'; return; }
+    el.innerHTML='<h3 class="title">Collection Window</h3><div class="meta" style="margin-bottom:.6rem">Old booking tag means migrated from the previous time-based system.</div>'+readyRows.map(r=>{
+      const remaining=Number(r.due_at_ms)-Date.now();
+      return '<div class="row"><div><strong>'+esc(r.timetable_stream)+' - '+esc(r.team)+(r.is_legacy?'<span class="legacy-tag">OLD BOOKING</span>':'')+'</strong><div class="meta">'+esc(r.project)+' | Ready: '+esc(r.completed_date)+(r.is_legacy&&r.legacy_note?' | '+esc(r.legacy_note):'')+'</div></div><div><div class="timer'+(remaining<=0?' overdue':'')+'" data-due="'+Number(r.due_at_ms)+'">'+timeLeft(remaining)+'</div><button class="status-btn" onclick="collect('+r.id+',\''+esc(r.team).replace(/'/g,"&#39;")+'\',\''+esc(r.timetable_stream).replace(/'/g,"&#39;")+'\')">Mark Collected</button></div></div>';
     }).join('');
-  } catch (err) {
-    console.error(err);
-    document.getElementById('calendar').innerHTML = '<div class="empty-msg" style="grid-column:1/-1">Failed to load schedule</div>';
-  }
+  }catch{ el.innerHTML='<div class="meta">Failed to load collection window.</div>'; }
 }
 
-function changeWeek(days) {
-  const d = new Date(currentMonday + 'T12:00:00');
-  d.setDate(d.getDate() + days);
-  currentMonday = padDate(d);
-  loadWeek();
+async function loadRejected(){
+  const el=document.getElementById('panelRejected');
+  try{
+    const res=await fetch('/api/cnc/rejected');
+    const rows=await res.json();
+    if(!rows.length){ el.innerHTML='<div class="meta">No rejected CNC jobs.</div>'; return; }
+    el.innerHTML='<h3 class="title">Rejection Window</h3><div class="meta" style="margin-bottom:.6rem">Old booking tag means migrated from the previous time-based system.</div>'+rows.map(r=>'<div class="row"><div><strong>'+esc(r.timetable_stream)+' - '+esc(r.team)+(r.is_legacy?'<span class="legacy-tag">OLD BOOKING</span>':'')+'</strong><div class="meta">'+esc(r.project)+' | '+esc(r.reject_reason||'No reason')+(r.is_legacy&&r.legacy_note?' | '+esc(r.legacy_note):'')+'</div></div><div class="meta">'+esc(r.booking_date)+'</div></div>').join('');
+  }catch{ el.innerHTML='<div class="meta">Failed to load rejected window.</div>'; }
 }
 
-function openBooking(date, time) {
-  pendingSlot = { date, time };
-  document.getElementById('modalSlotLabel').textContent = getDayName(date) + ' ' + formatDate(date) + ' at ' + time;
-  document.getElementById('mCourse').value = '';
-  document.getElementById('mStream').value = '';
-  document.getElementById('mTeam').value = '';
-  document.getElementById('mFileInput').value = '';
-  document.getElementById('mFileName').textContent = 'Choose a file...';
-  document.getElementById('mFileLabel').classList.remove('has-file');
-  document.getElementById('mBookBtn').disabled = false;
-  document.getElementById('mBookBtn').textContent = 'Book Slot';
-  document.getElementById('bookingModal').classList.add('open');
+async function submitCnc(){
+  const btn=document.getElementById('submitBtn');
+  const courseStream=document.getElementById('courseStream').value.trim();
+  const timetableStream=document.getElementById('timetableStream').value.trim();
+  const team=document.getElementById('team').value.trim();
+  const project=document.getElementById('project').value.trim();
+  const top=document.getElementById('topSurfaceFile').files[0];
+  const bottom=document.getElementById('bottomSurfaceFile').files[0];
+  const leading=document.getElementById('leadingEdgeFile').files[0];
+  if(!courseStream||!timetableStream||!team||!project){ alert('Please complete all required text fields.'); return; }
+  if(!top && !bottom && !leading){ alert('Upload at least one STEP file (.step).'); return; }
+  const checkStep=(f)=>!f || String(f.name||'').toLowerCase().endsWith('.step');
+  if(!checkStep(top)||!checkStep(bottom)||!checkStep(leading)){ alert('Only .step files are allowed.'); return; }
+  const fd=new FormData();
+  fd.append('courseStream',courseStream); fd.append('timetableStream',timetableStream); fd.append('team',team); fd.append('project',project);
+  fd.append('topSurfaceFile',top); fd.append('bottomSurfaceFile',bottom); fd.append('leadingEdgeFile',leading);
+  btn.disabled=true; btn.textContent='Submitting...';
+  try{
+    const res=await fetch('/api/cnc',{method:'POST',body:fd});
+    if(!res.ok){ const e=await res.json(); alert(e.error||'Submission failed'); btn.disabled=false; btn.textContent='Submit CNC Job'; return; }
+    document.getElementById('courseStream').value=''; document.getElementById('timetableStream').value=''; document.getElementById('team').value=''; document.getElementById('project').value='';
+    document.getElementById('topSurfaceFile').value=''; document.getElementById('bottomSurfaceFile').value=''; document.getElementById('leadingEdgeFile').value='';
+    await loadQueue(); alert('CNC job submitted.');
+  }catch{ alert('Network error'); }
+  btn.disabled=false; btn.textContent='Submit CNC Job';
 }
 
-function closeModal() {
-  pendingSlot = null;
-  document.getElementById('bookingModal').classList.remove('open');
+async function collect(id,team,timetableStream){
+  if(!confirm('Mark this CNC job as collected?')) return;
+  try{
+    const res=await fetch('/api/cnc/'+id+'/collect',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({team,timetableStream})});
+    if(!res.ok){ const e=await res.json(); alert(e.error||'Failed to mark collected'); return; }
+    await Promise.all([loadReady(), loadQueue()]);
+  }catch{ alert('Network error'); }
 }
 
-function updateModalFile() {
-  const input = document.getElementById('mFileInput');
-  const label = document.getElementById('mFileLabel');
-  const nameEl = document.getElementById('mFileName');
-  if (input.files.length > 0) {
-    nameEl.textContent = input.files[0].name + ' (' + (input.files[0].size / 1024 / 1024).toFixed(1) + ' MB)';
-    label.classList.add('has-file');
-  } else {
-    nameEl.textContent = 'Choose a file...';
-    label.classList.remove('has-file');
-  }
-}
+setInterval(()=>{
+  document.querySelectorAll('[data-due]').forEach(el=>{
+    const remaining=Number(el.getAttribute('data-due'))-Date.now();
+    el.textContent=timeLeft(remaining);
+    el.classList.toggle('overdue', remaining<=0);
+  });
+},1000);
 
-async function confirmBooking() {
-  if (!pendingSlot) return;
-  const course = document.getElementById('mCourse').value;
-  const stream = document.getElementById('mStream').value.trim();
-  const team = document.getElementById('mTeam').value.trim();
-  const fileInput = document.getElementById('mFileInput');
-
-  if (!course) { showToast('Select a course', true); return; }
-  if (!stream) { showToast('Enter timetable stream', true); return; }
-  if (!team) { showToast('Enter team / group', true); return; }
-
-  const btn = document.getElementById('mBookBtn');
-  btn.disabled = true;
-  btn.textContent = 'Booking...';
-
-  const fd = new FormData();
-  fd.append('resourceType', RESOURCE);
-  fd.append('slotDate', pendingSlot.date);
-  fd.append('slotTime', pendingSlot.time);
-  fd.append('courseStream', course);
-  fd.append('timetableStream', stream);
-  fd.append('team', team);
-  if (fileInput.files.length > 0) fd.append('file', fileInput.files[0]);
-
-  try {
-    const res = await fetch('/api/slots', { method: 'POST', body: fd });
-    if (!res.ok) {
-      const err = await res.json();
-      showToast(err.error || 'Booking failed', true);
-      btn.disabled = false;
-      btn.textContent = 'Book Slot';
-      return;
-    }
-    closeModal();
-    showToast('Slot booked successfully');
-    await loadWeek();
-  } catch {
-    showToast('Network error', true);
-    btn.disabled = false;
-    btn.textContent = 'Book Slot';
-  }
-}
-
-function esc(s) { if (!s) return ''; const d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
-function showToast(msg, isError = false) {
-  const t = document.getElementById('toast');
-  t.textContent = msg;
-  t.className = 'toast show' + (isError ? ' error' : '');
-  setTimeout(() => { t.className = 'toast'; }, 3000);
-}
-
-loadWeek();
+async function init(){ await Promise.all([loadLive(),loadQueue(),loadReady(),loadRejected()]); setInterval(loadLive,20000); setInterval(()=>{loadQueue();loadReady();loadRejected();},30000); }
+init();
 </script>
 </body>
 </html>

@@ -11,7 +11,7 @@ const {
 
 const uploadsDir = path.resolve(process.env.UPLOADS_DIR || path.join(__dirname, 'uploads'));
 const tempUploadsDir = path.join(uploadsDir, 'tmp');
-const defaultAllowedExtensions = ['.3mf', '.stl', '.obj', '.step', '.stp', '.gcode'];
+const defaultAllowedExtensions = ['.stl'];
 const providerFromEnv = (process.env.STORAGE_PROVIDER || 'local').toLowerCase();
 const maxUploadMb = Math.max(1, Number(process.env.MAX_UPLOAD_MB || 100));
 const maxUploadBytes = Math.floor(maxUploadMb * 1024 * 1024);
@@ -161,6 +161,26 @@ function createUploadMiddleware(fieldName = 'file', options = {}) {
   });
 
   return upload.single(fieldName);
+}
+
+function createUploadFieldsMiddleware(fields = [], options = {}) {
+  const allowAnyExtension = Boolean(options.allowAnyExtension);
+  const allowedExtensions = normalizeAllowedExtensions(options.allowedExtensions);
+
+  const upload = multer({
+    storage: uploadStorage,
+    limits: { fileSize: maxUploadBytes },
+    fileFilter: (_req, file, cb) => {
+      if (allowAnyExtension) return cb(null, true);
+      const ext = getFileExtension(file.originalname);
+      if (!allowedExtensions.has(ext)) {
+        return cb(new Error(`File type not allowed. Upload one of: ${formatAllowedExtensions(allowedExtensions)}.`));
+      }
+      return cb(null, true);
+    }
+  });
+
+  return upload.fields(fields);
 }
 
 async function removeTempFile(filePath) {
@@ -326,6 +346,7 @@ function getStorageSummary() {
 
 module.exports = {
   createUploadMiddleware,
+  createUploadFieldsMiddleware,
   persistUploadedFile,
   deleteStoredFile,
   sendStoredFile,

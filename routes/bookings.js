@@ -114,7 +114,6 @@ router.get('/ready', async (_req, res) => {
         TO_CHAR(COALESCE(b.completed_at, b.created_at), 'DD Mon') AS completed_date
       FROM bookings b
       WHERE b.status = 'completed'
-        AND b.collected_at IS NULL
       ORDER BY COALESCE(b.completed_at, b.created_at) DESC
       LIMIT 100
     `);
@@ -178,23 +177,7 @@ router.post(
     }
 
     if (!req.file) {
-      return res.status(400).json({ error: 'Please upload a print file (.3mf recommended)' });
-    }
-
-    const MAX_ACTIVE_PER_TEAM = 5;
-    const { rows: activeRows } = await pool.query(
-      `SELECT COUNT(*) FROM bookings
-       WHERE LOWER(timetable_stream) = LOWER($1)
-         AND LOWER(team) = LOWER($2)
-         AND status IN ('queued', 'printing')`,
-      [normalized.timetableStream, normalized.team]
-    );
-    if (parseInt(activeRows[0].count, 10) >= MAX_ACTIVE_PER_TEAM) {
-      return rejectWithTempCleanup(
-        res, 409,
-        'Your team already has ' + MAX_ACTIVE_PER_TEAM + ' active print jobs. Wait for one to complete before submitting another.',
-        req.file
-      );
+      return res.status(400).json({ error: 'Please upload an STL file (.stl)' });
     }
 
     let persisted = null;
@@ -259,32 +242,6 @@ router.post(
     }
   }
 );
-
-router.patch('/:id/collect', async (req, res) => {
-  const bookingId = parseInt(req.params.id, 10);
-  if (Number.isNaN(bookingId)) {
-    return res.status(400).json({ error: 'Invalid booking ID' });
-  }
-
-  try {
-    const { rows } = await pool.query(
-      `UPDATE bookings
-       SET collected_at = NOW()
-       WHERE id = $1
-         AND status = 'completed'
-         AND collected_at IS NULL
-       RETURNING id`,
-      [bookingId]
-    );
-    if (rows.length === 0) {
-      return res.status(404).json({ error: 'Print not found or already collected' });
-    }
-    return res.json({ message: 'Marked as collected' });
-  } catch (err) {
-    console.error('Error marking collected:', err);
-    return res.status(500).json({ error: 'Failed to mark as collected' });
-  }
-});
 
 router.delete('/:id', async (req, res) => {
   const bookingId = parseInt(req.params.id, 10);

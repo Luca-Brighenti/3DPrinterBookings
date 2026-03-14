@@ -666,7 +666,6 @@
     <button class="tab" data-tab="laser" onclick="switchTab('laser')">Laser Cutter</button>
     <button class="tab" data-tab="wind" onclick="switchTab('wind')">Wind Tunnel</button>
     <button class="tab" data-tab="cnc" onclick="switchTab('cnc')">CNC</button>
-    <button class="tab" data-tab="pickup" onclick="switchTab('pickup')">Add Pickup</button>
     <button class="tab" data-tab="analytics" onclick="switchTab('analytics')">Analytics</button>
   </div>
 
@@ -719,51 +718,38 @@
   </div>
 
   <div class="tab-content" id="tab-cnc">
-    <div class="section-header" style="margin-bottom:0.85rem">CNC Bookings</div>
-    <div class="toolbar">
-      <select class="toolbar-select" id="cncStatusFilter" onchange="loadSlotBookings('cnc')">
-        <option value="booked">Active</option>
+    <div class="section-header" style="margin-bottom:0.85rem">CNC Queue and Collection</div>
+    <div class="section-header" style="margin-bottom:0.85rem;color:var(--text-muted)">OLD BOOKING tag = migrated from previous time-based CNC system (files may be missing)</div>
+    <div style="display:grid;grid-template-columns:1fr auto;gap:0.75rem;align-items:center;margin-bottom:0.9rem">
+      <div class="toolbar" style="margin:0">
+      <select class="toolbar-select" id="cncStatusFilter" onchange="loadCncAdmin()">
+        <option value="queued">Queued</option>
         <option value="completed">Completed</option>
-        <option value="cancelled">Cancelled</option>
+        <option value="rejected">Rejected</option>
+        <option value="collected">Collected</option>
       </select>
+      </div>
+      <button class="action-btn btn-reject" id="cncLiveBtn" style="font-size:0.88rem;padding:0.9rem 1.5rem;justify-content:center" onclick="toggleCncLive()">GO LIVE</button>
     </div>
-    <div class="table-wrap"><table><thead><tr><th>Date</th><th>Time</th><th>Team</th><th>Stream</th><th>Course</th><th>File</th><th>Status</th><th>Actions</th></tr></thead><tbody id="cncBody"><tr><td colspan="8" class="empty-table">Select a filter...</td></tr></tbody></table></div>
-  </div>
 
-  <div class="tab-content" id="tab-pickup">
-    <div class="section-header" style="margin-bottom:0.85rem">Manually add a completed print that needs to be picked up</div>
-    <div style="max-width:480px">
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.6rem;margin-bottom:0.6rem">
-        <div>
-          <label class="form-label">TT Stream</label>
-          <input class="form-input" id="pickupStream" type="text" placeholder="e.g. 1A" style="margin-bottom:0">
-        </div>
-        <div>
-          <label class="form-label">Team / Group</label>
-          <input class="form-input" id="pickupTeam" type="text" placeholder="e.g. F" style="margin-bottom:0">
-        </div>
-      </div>
-      <div style="margin-bottom:0.6rem">
-        <label class="form-label">Project Name</label>
-        <input class="form-input" id="pickupProject" type="text" placeholder="e.g. bracket_v2" style="margin-bottom:0">
-      </div>
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.6rem;margin-bottom:0.6rem">
-        <div>
-          <label class="form-label">Course</label>
-          <select class="form-input" id="pickupCourse" style="margin-bottom:0">
-            <option value="Morphing Wing">Morphing Wing</option>
-          </select>
-        </div>
-        <div>
-          <label class="form-label">Material</label>
-          <select class="form-input" id="pickupMaterial" style="margin-bottom:0">
-            <option value="PLA">PLA</option>
-            <option value="PETG">PETG</option>
-          </select>
-        </div>
-      </div>
-      <button class="action-btn btn-complete" style="width:100%;justify-content:center;padding:0.65rem" onclick="submitPickupJob()">&#10003; Add Pickup Job</button>
+    <div class="table-wrap" style="margin-bottom:0.85rem">
+      <table>
+        <thead><tr><th colspan="4">Add Manual Job To Collection Window</th></tr></thead>
+        <tbody>
+          <tr>
+            <td><input class="toolbar-input" id="cncManualCourse" placeholder="Course"></td>
+            <td><input class="toolbar-input" id="cncManualStream" placeholder="TT Stream"></td>
+            <td><input class="toolbar-input" id="cncManualTeam" placeholder="Team"></td>
+            <td><input class="toolbar-input" id="cncManualProject" placeholder="Project"></td>
+          </tr>
+          <tr>
+            <td colspan="4"><button class="toolbar-btn" onclick="addManualCnc()" style="width:100%">Add Manual CNC Job</button></td>
+          </tr>
+        </tbody>
+      </table>
     </div>
+
+    <div class="table-wrap"><table><thead><tr><th>Team</th><th>Course</th><th>Project</th><th>STEP Files</th><th>Status</th><th>Reason</th><th>Actions</th></tr></thead><tbody id="cncBody"><tr><td colspan="7" class="empty-table">Select a filter...</td></tr></tbody></table></div>
   </div>
 
   <div class="tab-content" id="tab-analytics">
@@ -1090,14 +1076,13 @@ function switchTab(tab) {
   if (tab === 'completed' || tab === 'rejected') loadArchive(tab);
   if (tab === 'laser') loadSlotBookings('laser_cutter');
   if (tab === 'wind') loadSlotBookings('wind_tunnel');
-  if (tab === 'cnc') loadSlotBookings('cnc');
+  if (tab === 'cnc') loadCncAdmin();
 }
 
 async function loadSlotBookings(type) {
   const slotUiByType = {
     laser_cutter: { filterId: 'laserStatusFilter', bodyId: 'laserBody' },
-    wind_tunnel: { filterId: 'windStatusFilter', bodyId: 'windBody' },
-    cnc: { filterId: 'cncStatusFilter', bodyId: 'cncBody' }
+    wind_tunnel: { filterId: 'windStatusFilter', bodyId: 'windBody' }
   };
   const ui = slotUiByType[type];
   if (!ui) return;
@@ -1192,35 +1177,155 @@ async function deleteSlot(id, type) {
   } catch { showToast('Network error', true); }
 }
 
-async function submitPickupJob() {
-  const timetableStream = document.getElementById('pickupStream').value.trim();
-  const team = document.getElementById('pickupTeam').value.trim();
-  const project = document.getElementById('pickupProject').value.trim();
-  const courseStream = document.getElementById('pickupCourse').value;
-  const material = document.getElementById('pickupMaterial').value;
+async function loadCncLiveStatus() {
+  try {
+    const res = await fetch('/api/admin/cnc/live', { headers: authHeaders() });
+    if (res.status === 401) { logout(); return; }
+    if (!res.ok) return;
+    const data = await res.json();
+    const btn = document.getElementById('cncLiveBtn');
+    if (!btn) return;
+    if (data.isLive) {
+      btn.className = 'action-btn btn-complete';
+      btn.textContent = 'GOING LIVE NOW';
+    } else {
+      btn.className = 'action-btn btn-reject';
+      btn.textContent = 'GO LIVE';
+    }
+  } catch {}
+}
 
-  if (!timetableStream || !team || !project) {
-    showToast('TT stream, team, and project are required', true);
+async function toggleCncLive() {
+  const btn = document.getElementById('cncLiveBtn');
+  const isCurrentlyLive = btn && btn.textContent.indexOf('GOING LIVE NOW') >= 0;
+  try {
+    const res = await fetch('/api/admin/cnc/live', {
+      method: 'PUT',
+      headers: authHeaders(),
+      body: JSON.stringify({ isLive: !isCurrentlyLive })
+    });
+    if (res.status === 401) { logout(); return; }
+    if (!res.ok) { const d = await res.json(); showToast(d.error || 'Failed', true); return; }
+    await loadCncLiveStatus();
+    showToast(!isCurrentlyLive ? 'CNC set to LIVE' : 'CNC set to OFFLINE');
+  } catch { showToast('Network error', true); }
+}
+
+async function loadCncAdmin() {
+  const status = document.getElementById('cncStatusFilter').value;
+  const body = document.getElementById('cncBody');
+  await loadCncLiveStatus();
+  try {
+    const res = await fetch('/api/admin/cnc?status=' + encodeURIComponent(status), { headers: authHeaders() });
+    if (res.status === 401) { logout(); return; }
+    const rows = await res.json();
+    if (!rows.length) {
+      body.innerHTML = '<tr><td colspan="7" class="empty-table">No CNC bookings found</td></tr>';
+      return;
+    }
+    body.innerHTML = rows.map(r => {
+      let fileActions = '';
+      if (r.top_file_path) fileActions += '<button class="action-btn btn-download" style="padding:0.3rem 0.45rem;font-size:0.58rem" onclick="downloadCncPart(' + r.id + ',\'top\')">Top</button> ';
+      if (r.bottom_file_path) fileActions += '<button class="action-btn btn-download" style="padding:0.3rem 0.45rem;font-size:0.58rem" onclick="downloadCncPart(' + r.id + ',\'bottom\')">Bottom</button> ';
+      if (r.leading_file_path) fileActions += '<button class="action-btn btn-download" style="padding:0.3rem 0.45rem;font-size:0.58rem" onclick="downloadCncPart(' + r.id + ',\'leading\')">Leading</button>';
+      if (!fileActions) fileActions = '<span style="color:var(--text-muted)">—</span>';
+
+      let actions = '<span style="color:var(--text-muted)">—</span>';
+      if (r.status === 'queued') {
+        actions =
+          '<button class="action-btn btn-complete" style="padding:0.3rem 0.55rem;font-size:0.58rem" onclick="completeCnc(' + r.id + ')">&#10003;</button> ' +
+          '<button class="action-btn btn-reject" style="padding:0.3rem 0.55rem;font-size:0.58rem" onclick="rejectCnc(' + r.id + ')">&#10007;</button>';
+      }
+
+      const legacyTag = r.is_legacy ? ' <span style="font-family:var(--mono);font-size:0.52rem;font-weight:700;background:rgba(245,158,11,0.15);color:#f59e0b;padding:2px 6px;border-radius:99px;letter-spacing:0.04em">OLD BOOKING</span>' : '';
+      const legacyNote = r.is_legacy && r.legacy_note ? '<div style="font-family:var(--mono);font-size:0.55rem;color:var(--text-muted);margin-top:2px">' + esc(r.legacy_note) + '</div>' : '';
+      return '<tr>' +
+        '<td><strong>' + esc(r.timetable_stream) + ' — ' + esc(r.team) + '</strong>' + legacyTag + '<div style="font-family:var(--mono);font-size:0.6rem;color:var(--text-muted)">' + esc(r.created_str || '') + '</div>' + legacyNote + '</td>' +
+        '<td>' + esc(r.course_stream) + '</td>' +
+        '<td>' + esc(r.project) + '</td>' +
+        '<td>' + fileActions + '</td>' +
+        '<td style="font-family:var(--mono)">' + esc((r.status || '').toUpperCase()) + '</td>' +
+        '<td style="color:var(--rose)">' + esc(r.reject_reason || '—') + '</td>' +
+        '<td>' + actions + '</td>' +
+      '</tr>';
+    }).join('');
+  } catch (err) {
+    console.error('CNC admin load error:', err);
+    body.innerHTML = '<tr><td colspan="7" class="empty-table">Failed to load CNC bookings</td></tr>';
+  }
+}
+
+async function addManualCnc() {
+  const courseStream = document.getElementById('cncManualCourse').value.trim();
+  const timetableStream = document.getElementById('cncManualStream').value.trim();
+  const team = document.getElementById('cncManualTeam').value.trim();
+  const project = document.getElementById('cncManualProject').value.trim();
+  if (!courseStream || !timetableStream || !team || !project) {
+    showToast('Fill all manual CNC fields', true);
     return;
   }
   try {
-    const res = await fetch('/api/admin/bookings/manual-pickup', {
+    const res = await fetch('/api/admin/cnc/manual', {
       method: 'POST',
       headers: authHeaders(),
-      body: JSON.stringify({ courseStream, timetableStream, team, project, material })
+      body: JSON.stringify({ courseStream, timetableStream, team, project })
     });
     if (res.status === 401) { logout(); return; }
-    if (!res.ok) {
-      const d = await res.json();
-      showToast(d.error || 'Failed to create pickup job', true);
-      return;
-    }
-    showToast('Pickup job created — visible on collection board');
-    document.getElementById('pickupStream').value = '';
-    document.getElementById('pickupTeam').value = '';
-    document.getElementById('pickupProject').value = '';
-    await loadStats();
+    if (!res.ok) { const d = await res.json(); showToast(d.error || 'Failed', true); return; }
+    showToast('Manual CNC collection job added');
+    document.getElementById('cncManualCourse').value = '';
+    document.getElementById('cncManualStream').value = '';
+    document.getElementById('cncManualTeam').value = '';
+    document.getElementById('cncManualProject').value = '';
+    document.getElementById('cncStatusFilter').value = 'completed';
+    await loadCncAdmin();
   } catch { showToast('Network error', true); }
+}
+
+async function completeCnc(id) {
+  try {
+    const res = await fetch('/api/admin/cnc/' + id + '/complete', { method: 'PUT', headers: authHeaders() });
+    if (res.status === 401) { logout(); return; }
+    if (!res.ok) { const d = await res.json(); showToast(d.error || 'Failed', true); return; }
+    showToast('CNC job completed');
+    await loadCncAdmin();
+  } catch { showToast('Network error', true); }
+}
+
+async function rejectCnc(id) {
+  const reason = prompt('Enter rejection reason:', '');
+  if (!reason || !reason.trim()) return;
+  try {
+    const res = await fetch('/api/admin/cnc/' + id + '/reject', {
+      method: 'PUT',
+      headers: authHeaders(),
+      body: JSON.stringify({ reason: reason.trim() })
+    });
+    if (res.status === 401) { logout(); return; }
+    if (!res.ok) { const d = await res.json(); showToast(d.error || 'Failed', true); return; }
+    showToast('CNC job rejected');
+    await loadCncAdmin();
+  } catch { showToast('Network error', true); }
+}
+
+async function downloadCncPart(id, part) {
+  try {
+    const res = await fetch('/api/admin/cnc/' + id + '/file/' + part, { headers: { 'Authorization': 'Bearer ' + token } });
+    if (res.status === 401) { logout(); return; }
+    if (!res.ok) { const d = await res.json(); showToast((d && d.error) || 'Download failed', true); return; }
+    const blob = await res.blob();
+    const cd = res.headers.get('content-disposition');
+    let filename = part + '.step';
+    if (cd) { const m = cd.match(/filename="?([^"]+)"?/); if (m) filename = m[1]; }
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+  } catch { showToast('Download failed', true); }
 }
 
 async function nukeData() {

@@ -32,6 +32,18 @@ async function runRetentionCleanup() {
     [cutoff, cleanupBatchSize]
   );
 
+  const { rows: cncRows } = await pool.query(
+    `SELECT id, storage_provider,
+            top_file_path, bottom_file_path, leading_file_path
+     FROM cnc_bookings
+     WHERE (top_file_path IS NOT NULL OR bottom_file_path IS NOT NULL OR leading_file_path IS NOT NULL)
+       AND status IN ('completed', 'rejected', 'collected')
+       AND created_at < $1
+     ORDER BY created_at ASC
+     LIMIT $2`,
+    [cutoff, cleanupBatchSize]
+  );
+
   let cleaned = 0;
   for (const row of bookingRows) {
     const removed = await deleteStoredFile(row.file_path, row.storage_provider || 'local');
@@ -65,6 +77,29 @@ async function runRetentionCleanup() {
     }
   }
 
+  for (const row of cncRows) {
+    const provider = row.storage_provider || 'local';
+    let deletedAny = false;
+    for (const p of [row.top_file_path, row.bottom_file_path, row.leading_file_path]) {
+      if (!p) continue;
+      const removed = await deleteStoredFile(p, provider);
+      if (removed) {
+        cleaned += 1;
+        deletedAny = true;
+      }
+    }
+    if (deletedAny) {
+      await pool.query(
+        `UPDATE cnc_bookings
+         SET top_file_path = NULL, top_file_original_name = NULL, top_file_size = NULL, top_file_mime = NULL,
+             bottom_file_path = NULL, bottom_file_original_name = NULL, bottom_file_size = NULL, bottom_file_mime = NULL,
+             leading_file_path = NULL, leading_file_original_name = NULL, leading_file_size = NULL, leading_file_mime = NULL
+         WHERE id = $1`,
+        [row.id]
+      );
+    }
+  }
+
   return cleaned;
 }
 
@@ -75,7 +110,16 @@ async function runLocalOrphanCleanup() {
        WHERE storage_provider = 'local' AND file_path IS NOT NULL
      UNION
      SELECT file_path FROM slot_bookings
-       WHERE storage_provider = 'local' AND file_path IS NOT NULL`
+       WHERE storage_provider = 'local' AND file_path IS NOT NULL
+     UNION
+     SELECT top_file_path AS file_path FROM cnc_bookings
+       WHERE storage_provider = 'local' AND top_file_path IS NOT NULL
+     UNION
+     SELECT bottom_file_path AS file_path FROM cnc_bookings
+       WHERE storage_provider = 'local' AND bottom_file_path IS NOT NULL
+     UNION
+     SELECT leading_file_path AS file_path FROM cnc_bookings
+       WHERE storage_provider = 'local' AND leading_file_path IS NOT NULL`
   );
 
   const referenced = new Set(rows.map((row) => row.file_path));

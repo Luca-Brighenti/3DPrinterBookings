@@ -356,7 +356,7 @@ router.get('/stats', requireAdmin, async (_req, res) => {
       pool.query('SELECT material, COUNT(*) AS count FROM bookings GROUP BY material ORDER BY count DESC'),
       pool.query("SELECT COUNT(*) FROM slot_bookings WHERE resource_type = 'laser_cutter' AND status = 'booked'"),
       pool.query("SELECT COUNT(*) FROM slot_bookings WHERE resource_type = 'wind_tunnel' AND status = 'booked'"),
-      pool.query("SELECT COUNT(*) FROM slot_bookings WHERE resource_type = 'cnc' AND status = 'booked'")
+      pool.query("SELECT COUNT(*) FROM cnc_bookings WHERE status = 'queued'")
     ]);
 
     return res.json({
@@ -375,37 +375,6 @@ router.get('/stats', requireAdmin, async (_req, res) => {
   } catch (err) {
     console.error('Error fetching stats:', err);
     return res.status(500).json({ error: 'Failed to fetch stats' });
-  }
-});
-
-router.post('/bookings/manual-pickup', requireAdmin, async (req, res) => {
-  const { courseStream, timetableStream, team, project, material } = req.body || {};
-  if (!timetableStream || !team || !project) {
-    return res.status(400).json({ error: 'TT stream, team, and project are required' });
-  }
-
-  const cs = String(courseStream || 'Morphing Wing').trim().slice(0, 50);
-  const ts = String(timetableStream).trim().slice(0, 50);
-  const tm = String(team).trim().slice(0, 100);
-  const pj = String(project).trim().slice(0, 200);
-  const mat = String(material || 'PLA').trim().slice(0, 20);
-
-  if (!ts || !tm || !pj) {
-    return res.status(400).json({ error: 'Fields cannot be blank' });
-  }
-
-  try {
-    const { rows } = await pool.query(
-      `INSERT INTO bookings
-        (printer_id, course_stream, timetable_stream, team, project, material, duration, status, completed_at)
-       VALUES (NULL, $1, $2, $3, $4, $5, 0, 'completed', NOW())
-       RETURNING id, timetable_stream, team, project, status`,
-      [cs, ts, tm, pj, mat]
-    );
-    return res.status(201).json({ message: 'Pickup job created', booking: rows[0] });
-  } catch (err) {
-    console.error('Error creating manual pickup:', err);
-    return res.status(500).json({ error: 'Failed to create pickup job' });
   }
 });
 
@@ -468,7 +437,7 @@ router.get('/export', requireAdmin, async (_req, res) => {
 
 router.get('/slot-bookings', requireAdmin, async (req, res) => {
   const { type, status } = req.query;
-  const validTypes = ['laser_cutter', 'wind_tunnel', 'cnc'];
+  const validTypes = ['laser_cutter', 'wind_tunnel'];
   const validStatuses = ['booked', 'completed', 'cancelled'];
   if (type && !validTypes.includes(type)) {
     return res.status(400).json({ error: 'Invalid resource type' });
@@ -477,10 +446,6 @@ router.get('/slot-bookings', requireAdmin, async (req, res) => {
     return res.status(400).json({ error: 'Invalid status filter' });
   }
   try {
-    await pool.query(
-      `UPDATE slot_bookings SET status = 'completed'
-       WHERE status = 'booked' AND (slot_date + slot_time + INTERVAL '15 minutes') < NOW()`
-    );
     const conditions = [];
     const params = [];
     if (type) { params.push(type); conditions.push(`resource_type = $${params.length}`); }
@@ -500,6 +465,188 @@ router.get('/slot-bookings', requireAdmin, async (req, res) => {
   } catch (err) {
     console.error('Error fetching slot bookings:', err);
     return res.status(500).json({ error: 'Failed to fetch slot bookings' });
+  }
+});
+
+async function deleteCncFilesForBooking(booking) {
+  const filePairs = [
+    { path: booking.top_file_path, provider: booking.storage_provider },
+    { path: booking.bottom_file_path, provider: booking.storage_provider },
+    { path: booking.leading_file_path, provider: booking.storage_provider }
+  ];
+  for (const f of filePairs) {
+    if (f.path) {
+      const deleted = await deleteStoredFile(f.path, f.provider || 'local');
+      if (!deleted) return false;
+    }
+  }
+  return true;
+}
+
+router.get('/cnc/live', requireAdmin, async (_req, res) => {
+  try {
+    const { rows } = await pool.query("SELECT value FROM app_settings WHERE key = 'cnc_live' LIMIT 1");
+    const v = rows.length ? String(rows[0].value || '').toLowerCase() : 'false';
+    const isLive = v === '1' || v === 'true' || v === 'yes' || v === 'on';
+    return res.json({ isLive });
+  } catch (err) {
+    console.error('Error loading CNC live status:', err);
+    return res.status(500).json({ error: 'Failed to load CNC live status' });
+  }
+});
+
+router.put('/cnc/live', requireAdmin, async (req, res) => {
+  const { isLive } = req.body || {};
+  const next = Boolean(isLive);
+  try {
+    await pool.query(
+      `INSERT INTO app_settings (key, value, updated_at)
+       VALUES ('cnc_live', $1, NOW())
+       ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, updated_at = NOW()`,
+      [next ? 'true' : 'false']
+    );
+    return res.json({ isLive: next });
+  } catch (err) {
+    console.error('Error updating CNC live status:', err);
+    return res.status(500).json({ error: 'Failed to update CNC live status' });
+  }
+});
+
+router.get('/cnc', requireAdmin, async (req, res) => {
+  const status = (req.query.status || 'queued').toString();
+  const validStatuses = ['queued', 'completed', 'rejected', 'collected'];
+  if (!validStatuses.includes(status)) {
+    return res.status(400).json({ error: 'Invalid CNC status filter' });
+  }
+  try {
+    const { rows } = await pool.query(
+      `SELECT id, course_stream, timetable_stream, team, project, status, reject_reason, is_legacy, legacy_note,
+              top_file_path, top_file_original_name, bottom_file_path, bottom_file_original_name,
+              leading_file_path, leading_file_original_name, storage_provider,
+              TO_CHAR(created_at, 'DD Mon YYYY HH24:MI') AS created_str
+       FROM cnc_bookings
+       WHERE status = $1
+       ORDER BY created_at DESC`,
+      [status]
+    );
+    return res.json(rows);
+  } catch (err) {
+    console.error('Error fetching CNC bookings:', err);
+    return res.status(500).json({ error: 'Failed to fetch CNC bookings' });
+  }
+});
+
+router.post('/cnc/manual', requireAdmin, async (req, res) => {
+  const courseStream = String(req.body.courseStream || '').trim();
+  const timetableStream = String(req.body.timetableStream || '').trim();
+  const team = String(req.body.team || '').trim();
+  const project = String(req.body.project || '').trim();
+  if (!courseStream || !timetableStream || !team || !project) {
+    return res.status(400).json({ error: 'Course, timetable stream, team, and project are required' });
+  }
+  try {
+    const { rows } = await pool.query(
+      `INSERT INTO cnc_bookings
+        (course_stream, timetable_stream, team, project, storage_provider, status, completed_at)
+       VALUES ($1, $2, $3, $4, 'local', 'completed', NOW())
+       RETURNING id, course_stream, timetable_stream, team, project, status`,
+      [courseStream, timetableStream, team, project]
+    );
+    return res.status(201).json(rows[0]);
+  } catch (err) {
+    console.error('Error creating manual CNC booking:', err);
+    return res.status(500).json({ error: 'Failed to create manual CNC booking' });
+  }
+});
+
+router.put('/cnc/:id/complete', requireAdmin, async (req, res) => {
+  const id = parseInt(req.params.id, 10);
+  if (Number.isNaN(id)) return res.status(400).json({ error: 'Invalid ID' });
+  try {
+    const { rows } = await pool.query(
+      "UPDATE cnc_bookings SET status = 'completed', completed_at = NOW() WHERE id = $1 AND status = 'queued' RETURNING *",
+      [id]
+    );
+    if (rows.length === 0) return res.status(404).json({ error: 'Booking not found or already processed' });
+
+    const deletedAll = await deleteCncFilesForBooking(rows[0]);
+    if (deletedAll) {
+      await pool.query(
+        `UPDATE cnc_bookings
+         SET top_file_path = NULL, top_file_size = NULL, top_file_mime = NULL,
+             bottom_file_path = NULL, bottom_file_size = NULL, bottom_file_mime = NULL,
+             leading_file_path = NULL, leading_file_size = NULL, leading_file_mime = NULL
+         WHERE id = $1`,
+        [id]
+      );
+    }
+    return res.json({ message: 'Marked as completed' });
+  } catch (err) {
+    console.error('Error completing CNC booking:', err);
+    return res.status(500).json({ error: 'Failed to complete CNC booking' });
+  }
+});
+
+router.put('/cnc/:id/reject', requireAdmin, async (req, res) => {
+  const id = parseInt(req.params.id, 10);
+  if (Number.isNaN(id)) return res.status(400).json({ error: 'Invalid ID' });
+  const reason = String(req.body.reason || '').trim();
+  if (!reason) return res.status(400).json({ error: 'Rejection reason is required' });
+  try {
+    const { rows } = await pool.query(
+      "UPDATE cnc_bookings SET status = 'rejected', reject_reason = $2 WHERE id = $1 AND status = 'queued' RETURNING *",
+      [id, reason.slice(0, 500)]
+    );
+    if (rows.length === 0) return res.status(404).json({ error: 'Booking not found or already processed' });
+
+    const deletedAll = await deleteCncFilesForBooking(rows[0]);
+    if (deletedAll) {
+      await pool.query(
+        `UPDATE cnc_bookings
+         SET top_file_path = NULL, top_file_size = NULL, top_file_mime = NULL,
+             bottom_file_path = NULL, bottom_file_size = NULL, bottom_file_mime = NULL,
+             leading_file_path = NULL, leading_file_size = NULL, leading_file_mime = NULL
+         WHERE id = $1`,
+        [id]
+      );
+    }
+    return res.json({ message: 'Rejected' });
+  } catch (err) {
+    console.error('Error rejecting CNC booking:', err);
+    return res.status(500).json({ error: 'Failed to reject CNC booking' });
+  }
+});
+
+router.get('/cnc/:id/file/:part', requireAdmin, async (req, res) => {
+  const id = parseInt(req.params.id, 10);
+  const part = String(req.params.part || '').toLowerCase();
+  if (Number.isNaN(id)) return res.status(400).json({ error: 'Invalid ID' });
+  if (!['top', 'bottom', 'leading'].includes(part)) {
+    return res.status(400).json({ error: 'Invalid file part' });
+  }
+  const partMap = {
+    top: ['top_file_path', 'top_file_original_name', 'top_file_mime'],
+    bottom: ['bottom_file_path', 'bottom_file_original_name', 'bottom_file_mime'],
+    leading: ['leading_file_path', 'leading_file_original_name', 'leading_file_mime']
+  };
+  const [pathCol, nameCol, mimeCol] = partMap[part];
+  try {
+    const { rows } = await pool.query(
+      `SELECT ${pathCol} AS file_path, ${nameCol} AS file_original_name, ${mimeCol} AS file_mime, storage_provider
+       FROM cnc_bookings WHERE id = $1`,
+      [id]
+    );
+    if (rows.length === 0 || !rows[0].file_path) {
+      return res.status(404).json({ error: 'File not found' });
+    }
+    await sendStoredFile(res, rows[0]);
+    return undefined;
+  } catch (err) {
+    if (err && (err.code === 'FILE_NOT_FOUND' || err.code === 'NoSuchKey' || err.name === 'NoSuchKey')) {
+      return res.status(404).json({ error: 'File no longer available' });
+    }
+    console.error('Error downloading CNC file:', err);
+    return res.status(500).json({ error: 'Failed to download CNC file' });
   }
 });
 
@@ -639,7 +786,22 @@ router.delete('/nuke', requireAdmin, async (req, res) => {
       if (deleted) cleaned++;
     }
 
-    await pool.query('TRUNCATE bookings, slot_bookings RESTART IDENTITY');
+    const { rows: cncFiles } = await pool.query(
+      `SELECT top_file_path, bottom_file_path, leading_file_path, storage_provider
+       FROM cnc_bookings
+       WHERE top_file_path IS NOT NULL OR bottom_file_path IS NOT NULL OR leading_file_path IS NOT NULL`
+    );
+    for (const row of cncFiles) {
+      const provider = row.storage_provider || 'local';
+      for (const p of [row.top_file_path, row.bottom_file_path, row.leading_file_path]) {
+        if (!p) continue;
+        const deleted = await deleteStoredFile(p, provider);
+        if (deleted) cleaned++;
+      }
+    }
+
+    await pool.query('TRUNCATE bookings, slot_bookings, cnc_bookings RESTART IDENTITY');
+    await pool.query("UPDATE app_settings SET value = 'false', updated_at = NOW() WHERE key = 'cnc_live'");
     console.log(`[nuke] Wiped all bookings and ${cleaned} files`);
     return res.json({ message: 'All data wiped', filesDeleted: cleaned });
   } catch (err) {

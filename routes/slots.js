@@ -13,9 +13,8 @@ const { bookingSubmitLimiter } = require('../middleware/rateLimit');
 const router = express.Router();
 const uploadSingle = createUploadMiddleware('file', { allowAnyExtension: true });
 
-const VALID_TYPES = ['laser_cutter', 'wind_tunnel', 'cnc'];
+const VALID_TYPES = ['laser_cutter', 'wind_tunnel'];
 const LASER_ALLOWED_EXTENSIONS = new Set(['.dxf', '.svg', '.ai', '.pdf', '.3mf', '.stl']);
-const CNC_ALLOWED_EXTENSIONS = new Set(['.nc', '.tap', '.gcode', '.step', '.stp', '.stl', '.3mf', '.dxf']);
 
 const SLOT_WINDOWS = [
   { day: 1, startHour: 15, startMin: 0, endHour: 17, endMin: 0 },
@@ -109,18 +108,7 @@ function isFutureSlot(dateStr, timeStr) {
   return slotEnd.getTime() > Date.now();
 }
 
-async function autoCompletePastSlots() {
-  await pool.query(
-    `UPDATE slot_bookings
-     SET status = 'completed'
-     WHERE status = 'booked'
-       AND (slot_date + slot_time + INTERVAL '15 minutes') < NOW()`
-  );
-}
-
 async function enforceSingleActiveBookingPerTeam(resourceType, timetableStream, team) {
-  await autoCompletePastSlots();
-
   const { rows } = await pool.query(
     `SELECT id, file_path, storage_provider
      FROM slot_bookings
@@ -132,19 +120,36 @@ async function enforceSingleActiveBookingPerTeam(resourceType, timetableStream, 
     [resourceType, timetableStream, team]
   );
 
-  if (rows.length <= 1) {
-    return rows.length === 1;
-  }
+  if (rows.length === 0) return false;
 
-  const extras = rows.slice(1);
-  for (const row of extras) {
-    await pool.query('DELETE FROM slot_bookings WHERE id = $1', [row.id]);
-    if (row.file_path) {
-      await deleteStoredFile(row.file_path, row.storage_provider || 'local');
+  const now = Date.now();
+  let hasFutureActive = false;
+  for (const row of rows) {
+    const { rows: slotRows } = await pool.query(
+      `SELECT TO_CHAR(slot_date, 'YYYY-MM-DD') AS date_str, TO_CHAR(slot_time, 'HH24:MI') AS time_str
+       FROM slot_bookings WHERE id = $1`,
+      [row.id]
+    );
+    if (!slotRows.length) continue;
+    const slotEnd = new Date(slotRows[0].date_str + 'T' + slotRows[0].time_str + ':00');
+    slotEnd.setMinutes(slotEnd.getMinutes() + 15);
+    if (slotEnd.getTime() > now) {
+      hasFutureActive = true;
+    } else {
+      await pool.query("UPDATE slot_bookings SET status = 'cancelled' WHERE id = $1", [row.id]);
+      if (row.file_path) {
+        const deleted = await deleteStoredFile(row.file_path, row.storage_provider || 'local');
+        if (deleted) {
+          await pool.query(
+            'UPDATE slot_bookings SET file_path = NULL, file_original_name = NULL, file_size = NULL, file_mime = NULL WHERE id = $1',
+            [row.id]
+          );
+        }
+      }
     }
   }
 
-  return true;
+  return hasFutureActive;
 }
 
 function generateSlotsForDate(dateStr) {
@@ -178,8 +183,6 @@ router.get('/', async (req, res) => {
   const { monday, friday, dates } = weekInfo;
 
   try {
-    await autoCompletePastSlots();
-
     const { rows } = await pool.query(
       `SELECT id, resource_type, slot_date, slot_time, timetable_stream, team, status,
               course_stream, file_original_name,
@@ -288,18 +291,6 @@ router.post(
         );
       }
     }
-    if (req.file && resourceType === 'cnc') {
-      const extension = getFileExtension(req.file.originalname);
-      if (!CNC_ALLOWED_EXTENSIONS.has(extension)) {
-        return rejectCleanup(
-          res,
-          400,
-          'CNC uploads must be .nc, .tap, .gcode, .step, .stp, .stl, .3mf, or .dxf files',
-          req.file
-        );
-      }
-    }
-
     let persisted = null;
     try {
       if (req.file) {
@@ -344,9 +335,6 @@ router.post(
         await deleteStoredFile(persisted.filePath, persisted.storageProvider);
       }
       if (err.code === '23505') {
-        if (err.constraint === 'idx_slot_unique_team_booked') {
-          return res.status(409).json({ error: 'Your team already has an active booking for this machine.' });
-        }
         return res.status(409).json({ error: 'This time slot is already booked' });
       }
       console.error('Error creating slot booking:', err);
