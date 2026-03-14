@@ -162,7 +162,7 @@
   .ready-header-title { font-size:1rem; font-weight:800; color:var(--emerald); letter-spacing:-0.01em; }
   .ready-header-sub { font-family:var(--mono); font-size:0.58rem; font-weight:500; color:var(--text-muted); margin-top:2px; letter-spacing:0.06em; }
   .ready-list { display:flex; flex-direction:column; gap:0.5rem; }
-  .ready-row { background:var(--surface-raised); border:1px solid var(--border); border-left:3px solid var(--emerald); border-radius:var(--radius-sm); padding:0.75rem 1rem; display:grid; grid-template-columns:minmax(90px,auto) 1fr auto auto; align-items:center; gap:0.85rem; transition:all 0.12s ease; }
+  .ready-row { background:var(--surface-raised); border:1px solid var(--border); border-left:3px solid var(--emerald); border-radius:var(--radius-sm); padding:0.75rem 1rem; display:grid; grid-template-columns:minmax(90px,auto) 1fr auto auto auto; align-items:center; gap:0.85rem; transition:all 0.12s ease; }
   .ready-row:hover { border-color:rgba(16,185,129,0.3); background:var(--surface-overlay); transform:translateX(2px); }
   .ready-team { font-size:0.82rem; font-weight:700; white-space:nowrap; }
   .ready-file { font-family:var(--mono); font-size:0.62rem; font-weight:500; color:var(--text-tertiary); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
@@ -183,7 +183,7 @@
   .rejected-row { background:var(--surface-raised); border:1px solid var(--border); border-left:3px solid var(--rose); border-radius:var(--radius-sm); padding:0.75rem 1rem; display:grid; grid-template-columns:minmax(90px,auto) 1fr auto auto; align-items:center; gap:0.85rem; transition:all 0.12s ease; }
   .rejected-row:hover { border-color:rgba(244,63,94,0.25); background:var(--surface-overlay); transform:translateX(2px); }
   .rejected-team { font-size:0.82rem; font-weight:700; white-space:nowrap; }
-  .rejected-reason { font-family:var(--mono); font-size:0.68rem; font-weight:500; color:var(--rose); background:var(--rose-dim); padding:3px 8px; border-radius:var(--radius-xs); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width:320px; }
+  .rejected-reason { font-family:var(--mono); font-size:0.68rem; font-weight:500; color:var(--rose); background:var(--rose-dim); padding:3px 8px; border-radius:var(--radius-xs); white-space:normal; overflow:visible; text-overflow:clip; max-width:none; word-break:break-word; }
   .rejected-file { font-family:var(--mono); font-size:0.62rem; font-weight:500; color:var(--text-tertiary); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
   .rejected-date { font-family:var(--mono); font-size:0.58rem; font-weight:600; color:var(--text-muted); white-space:nowrap; }
 
@@ -548,6 +548,7 @@ function renderReadyForCollection() {
       '<div class="ready-file">' + esc(r.project || '') + (r.file_original_name ? ' (' + esc(r.file_original_name) + ')' : '') + '</div>' +
       '<div class="' + timerClass + '" data-due-ms="' + dueMs + '">' + text + '</div>' +
       '<div class="ready-date">Ready: ' + esc(r.completed_date) + '</div>' +
+      '<button class="checklist-btn secondary" style="font-size:0.62rem;padding:0.45rem 0.7rem;flex:initial" onclick="collect3d(' + r.id + ')">Collected</button>' +
     '</div>';
   }).join('');
 }
@@ -560,6 +561,23 @@ function updateCountdowns() {
     const remaining = dueMs - now;
     el.textContent = formatCountdown(remaining);
     el.classList.toggle('overdue', remaining <= 0);
+  }
+}
+
+async function collect3d(id) {
+  const warning = 'Only mark as collected if your team has physically picked up the print. We check leftover prints. False collection confirmations may result in a team ban from 3D printing.';
+  if (!confirm(warning)) return;
+  try {
+    const res = await fetch('/api/bookings/ready/' + id + '/collect', { method: 'PUT' });
+    if (!res.ok) {
+      const err = await res.json();
+      showToast((err && err.error) || 'Failed to mark collected', true);
+      return;
+    }
+    showToast('Marked as collected');
+    await loadReadyForCollection();
+  } catch {
+    showToast('Network error', true);
   }
 }
 

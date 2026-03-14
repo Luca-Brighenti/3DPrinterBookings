@@ -678,6 +678,22 @@
       <input class="toolbar-input" id="compSearch" type="text" placeholder="Search completed..." oninput="debouncedArchive('completed')">
       <button class="toolbar-btn" onclick="exportCSV()">Export CSV</button>
     </div>
+    <div class="table-wrap" style="margin-bottom:0.85rem">
+      <table>
+        <thead><tr><th colspan="4">Add Manual 3D Collection Job</th></tr></thead>
+        <tbody>
+          <tr>
+            <td><input class="toolbar-input" id="manual3dCourse" placeholder="Course"></td>
+            <td><input class="toolbar-input" id="manual3dStream" placeholder="TT Stream"></td>
+            <td><input class="toolbar-input" id="manual3dTeam" placeholder="Team"></td>
+            <td><input class="toolbar-input" id="manual3dProject" placeholder="Project"></td>
+          </tr>
+          <tr>
+            <td colspan="4"><button class="toolbar-btn" onclick="addManual3dCollection()" style="width:100%">Add Manual Collection Ticket</button></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
     <div class="table-wrap"><table><thead><tr><th>Printer</th><th>Team</th><th>Course</th><th>TT Stream</th><th>Project</th><th>Material</th><th>Duration</th><th>Date</th></tr></thead><tbody id="compBody"><tr><td colspan="8" class="empty-table">Loading...</td></tr></tbody></table></div>
   </div>
 
@@ -1063,6 +1079,38 @@ async function exportCSV() {
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a'); a.href = url; a.download = 'bookings_export.csv'; document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url);
   } catch { showToast('Export failed', true); }
+}
+
+async function addManual3dCollection() {
+  const courseStream = document.getElementById('manual3dCourse').value.trim();
+  const timetableStream = document.getElementById('manual3dStream').value.trim();
+  const team = document.getElementById('manual3dTeam').value.trim();
+  const project = document.getElementById('manual3dProject').value.trim();
+  if (!courseStream || !timetableStream || !team || !project) {
+    showToast('Fill all manual 3D fields', true);
+    return;
+  }
+  try {
+    const res = await fetch('/api/admin/bookings/manual-collection', {
+      method: 'POST',
+      headers: authHeaders(),
+      body: JSON.stringify({ courseStream, timetableStream, team, project })
+    });
+    if (res.status === 401) { logout(); return; }
+    if (!res.ok) {
+      const d = await res.json();
+      showToast(d.error || 'Failed', true);
+      return;
+    }
+    showToast('Manual 3D collection ticket added');
+    document.getElementById('manual3dCourse').value = '';
+    document.getElementById('manual3dStream').value = '';
+    document.getElementById('manual3dTeam').value = '';
+    document.getElementById('manual3dProject').value = '';
+    loadArchive('completed');
+  } catch {
+    showToast('Network error', true);
+  }
 }
 
 let archiveTimer;

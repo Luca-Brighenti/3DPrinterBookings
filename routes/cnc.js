@@ -142,9 +142,9 @@ router.post(
       await cleanupTempFiles(req.files);
       return res.status(400).json({ error: 'Course, timetable stream, team, and project are required' });
     }
-    if (!topFile && !bottomFile && !leadingFile) {
+    if (!topFile) {
       await cleanupTempFiles(req.files);
-      return res.status(400).json({ error: 'Upload at least one STEP file (.step)' });
+      return res.status(400).json({ error: 'Top Surface STEP file is required (.step)' });
     }
 
     let topStored = null;
@@ -204,24 +204,17 @@ router.post(
 router.put('/:id/collect', async (req, res) => {
   const id = parseInt(req.params.id, 10);
   if (Number.isNaN(id)) return res.status(400).json({ error: 'Invalid ID' });
-  const team = normalizeText(req.body.team);
-  const timetableStream = normalizeText(req.body.timetableStream);
-  if (!team || !timetableStream) {
-    return res.status(400).json({ error: 'Team and timetable stream are required' });
-  }
   try {
     const { rows } = await pool.query(
       `UPDATE cnc_bookings
        SET status = 'collected', collected_at = NOW()
        WHERE id = $1
          AND status = 'completed'
-         AND LOWER(team) = LOWER($2)
-         AND LOWER(timetable_stream) = LOWER($3)
        RETURNING id`,
-      [id, team, timetableStream]
+      [id]
     );
     if (rows.length === 0) {
-      return res.status(404).json({ error: 'Job not found or details do not match' });
+      return res.status(404).json({ error: 'Collection ticket not found' });
     }
     return res.json({ message: 'Marked as collected' });
   } catch (err) {

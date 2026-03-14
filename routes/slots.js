@@ -14,7 +14,7 @@ const router = express.Router();
 const uploadSingle = createUploadMiddleware('file', { allowAnyExtension: true });
 
 const VALID_TYPES = ['laser_cutter', 'wind_tunnel'];
-const LASER_ALLOWED_EXTENSIONS = new Set(['.dxf', '.svg', '.ai', '.pdf', '.3mf', '.stl']);
+const LASER_ALLOWED_EXTENSIONS = new Set(['.dxf']);
 
 const SLOT_WINDOWS = [
   { day: 1, startHour: 15, startMin: 0, endHour: 17, endMin: 0 },
@@ -286,7 +286,7 @@ router.post(
         return rejectCleanup(
           res,
           400,
-          'Laser uploads must be .dxf, .svg, .ai, .pdf, .3mf, or .stl files',
+          'Laser uploads must be .dxf files only',
           req.file
         );
       }

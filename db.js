@@ -56,6 +56,7 @@ async function initDB() {
         status TEXT NOT NULL DEFAULT 'queued',
         reject_reason TEXT,
         completed_at TIMESTAMP,
+        collected_at TIMESTAMP,
         created_at TIMESTAMP DEFAULT NOW()
       )
     `);
@@ -78,6 +79,7 @@ async function initDB() {
     await client.query('ALTER TABLE bookings ADD COLUMN IF NOT EXISTS status TEXT DEFAULT \'queued\'');
     await client.query('ALTER TABLE bookings ADD COLUMN IF NOT EXISTS reject_reason TEXT');
     await client.query('ALTER TABLE bookings ADD COLUMN IF NOT EXISTS completed_at TIMESTAMP');
+    await client.query('ALTER TABLE bookings ADD COLUMN IF NOT EXISTS collected_at TIMESTAMP');
     await client.query('ALTER TABLE bookings ADD COLUMN IF NOT EXISTS created_at TIMESTAMP DEFAULT NOW()');
 
     const hasLegacyStream = await columnExists(client, 'bookings', 'stream');
@@ -173,12 +175,22 @@ async function initDB() {
     const { rows: existingPrinters } = await client.query('SELECT COUNT(*) FROM printers');
     if (parseInt(existingPrinters[0].count, 10) === 0) {
       const printers = [];
-      for (let i = 1; i <= 15; i += 1) {
+      for (let i = 1; i <= 18; i += 1) {
         const label = `MECH EK${String(i).padStart(2, '0')}`;
         printers.push(`('Bambu P1S', '${label}', '256×256×256mm · 0.4mm', 'available')`);
       }
       await client.query(`INSERT INTO printers (name, label, spec, status) VALUES ${printers.join(', ')}`);
-      console.log('Seeded 15 printers');
+      console.log('Seeded 18 printers');
+    }
+
+    for (let i = 1; i <= 18; i += 1) {
+      const label = `MECH EK${String(i).padStart(2, '0')}`;
+      await client.query(
+        `INSERT INTO printers (name, label, spec, status)
+         VALUES ('Bambu P1S', $1, '256×256×256mm · 0.4mm', 'available')
+         ON CONFLICT (label) DO NOTHING`,
+        [label]
+      );
     }
 
     const { rows: existingAdmins } = await client.query('SELECT COUNT(*) FROM admins');

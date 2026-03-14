@@ -248,6 +248,33 @@ router.put('/bookings/:id/reject', requireAdmin, async (req, res) => {
   }
 });
 
+router.post('/bookings/manual-collection', requireAdmin, async (req, res) => {
+  const courseStream = String(req.body.courseStream || '').trim();
+  const timetableStream = String(req.body.timetableStream || '').trim();
+  const team = String(req.body.team || '').trim();
+  const project = String(req.body.project || '').trim();
+  if (!courseStream || !timetableStream || !team || !project) {
+    return res.status(400).json({ error: 'Course, timetable stream, team, and project are required' });
+  }
+  try {
+    const { rows } = await pool.query(
+      `INSERT INTO bookings (
+         printer_id, course_stream, timetable_stream, team, project,
+         material, duration, notes, storage_provider, status, completed_at
+       ) VALUES (
+         NULL, $1, $2, $3, $4,
+         'PLA', 1, 'Manual collection ticket', 'local', 'completed', NOW()
+       )
+       RETURNING id, course_stream, timetable_stream, team, project, status`,
+      [courseStream, timetableStream, team, project]
+    );
+    return res.status(201).json(rows[0]);
+  } catch (err) {
+    console.error('Error creating manual collection booking:', err);
+    return res.status(500).json({ error: 'Failed to create manual collection booking' });
+  }
+});
+
 router.get('/bookings/:id/file', requireAdmin, async (req, res) => {
   const id = parseInt(req.params.id, 10);
   if (Number.isNaN(id)) return res.status(400).json({ error: 'Invalid ID' });

@@ -69,15 +69,15 @@
       <label class="label">Project Name</label>
       <input id="project" class="input" placeholder="e.g. wing_rev5">
 
-      <label class="label">Top Surface (.step)</label>
+      <label class="label">Top Surface (.step) - Required</label>
       <input id="topSurfaceFile" class="input file" type="file" accept=".step">
-      <div class="hint">STEP only (.step)</div>
-      <label class="label">Bottom Surface (.step)</label>
+      <div class="hint">STEP only (.step) - this upload is compulsory</div>
+      <label class="label">Bottom Surface (.step) - Optional</label>
       <input id="bottomSurfaceFile" class="input file" type="file" accept=".step">
-      <div class="hint">STEP only (.step)</div>
-      <label class="label">Leading Edge / Other (.step)</label>
+      <div class="hint">STEP only (.step) - optional</div>
+      <label class="label">Leading Edge / Other (.step) - Optional</label>
       <input id="leadingEdgeFile" class="input file" type="file" accept=".step">
-      <div class="hint">STEP only (.step)</div>
+      <div class="hint">STEP only (.step) - optional</div>
 
       <button class="btn" id="submitBtn" onclick="submitCnc()">Submit CNC Job</button>
     </div>
@@ -141,7 +141,7 @@ async function loadReady(){
     if(!readyRows.length){ el.innerHTML='<div class="meta">No jobs waiting for collection.</div>'; return; }
     el.innerHTML='<h3 class="title">Collection Window</h3><div class="meta" style="margin-bottom:.6rem">Old booking tag means migrated from the previous time-based system.</div>'+readyRows.map(r=>{
       const remaining=Number(r.due_at_ms)-Date.now();
-      return '<div class="row"><div><strong>'+esc(r.timetable_stream)+' - '+esc(r.team)+(r.is_legacy?'<span class="legacy-tag">OLD BOOKING</span>':'')+'</strong><div class="meta">'+esc(r.project)+' | Ready: '+esc(r.completed_date)+(r.is_legacy&&r.legacy_note?' | '+esc(r.legacy_note):'')+'</div></div><div><div class="timer'+(remaining<=0?' overdue':'')+'" data-due="'+Number(r.due_at_ms)+'">'+timeLeft(remaining)+'</div><button class="status-btn" onclick="collect('+r.id+',\''+esc(r.team).replace(/'/g,"&#39;")+'\',\''+esc(r.timetable_stream).replace(/'/g,"&#39;")+'\')">Mark Collected</button></div></div>';
+      return '<div class="row"><div><strong>'+esc(r.timetable_stream)+' - '+esc(r.team)+(r.is_legacy?'<span class="legacy-tag">OLD BOOKING</span>':'')+'</strong><div class="meta">'+esc(r.project)+' | Ready: '+esc(r.completed_date)+(r.is_legacy&&r.legacy_note?' | '+esc(r.legacy_note):'')+'</div></div><div><div class="timer'+(remaining<=0?' overdue':'')+'" data-due="'+Number(r.due_at_ms)+'">'+timeLeft(remaining)+'</div><button class="status-btn" onclick="collect('+r.id+')">Mark Collected</button></div></div>';
     }).join('');
   }catch{ el.innerHTML='<div class="meta">Failed to load collection window.</div>'; }
 }
@@ -166,7 +166,7 @@ async function submitCnc(){
   const bottom=document.getElementById('bottomSurfaceFile').files[0];
   const leading=document.getElementById('leadingEdgeFile').files[0];
   if(!courseStream||!timetableStream||!team||!project){ alert('Please complete all required text fields.'); return; }
-  if(!top && !bottom && !leading){ alert('Upload at least one STEP file (.step).'); return; }
+  if(!top){ alert('Top Surface STEP file is required (.step).'); return; }
   const checkStep=(f)=>!f || String(f.name||'').toLowerCase().endsWith('.step');
   if(!checkStep(top)||!checkStep(bottom)||!checkStep(leading)){ alert('Only .step files are allowed.'); return; }
   const fd=new FormData();
@@ -183,10 +183,11 @@ async function submitCnc(){
   btn.disabled=false; btn.textContent='Submit CNC Job';
 }
 
-async function collect(id,team,timetableStream){
-  if(!confirm('Mark this CNC job as collected?')) return;
+async function collect(id){
+  const warning='Only mark as collected if your team has physically picked up the print. We check leftover prints. False collection confirmations may result in a team ban from 3D printing.';
+  if(!confirm(warning)) return;
   try{
-    const res=await fetch('/api/cnc/'+id+'/collect',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({team,timetableStream})});
+    const res=await fetch('/api/cnc/'+id+'/collect',{method:'PUT'});
     if(!res.ok){ const e=await res.json(); alert(e.error||'Failed to mark collected'); return; }
     await Promise.all([loadReady(), loadQueue()]);
   }catch{ alert('Network error'); }

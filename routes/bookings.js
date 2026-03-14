@@ -114,6 +114,7 @@ router.get('/ready', async (_req, res) => {
         TO_CHAR(COALESCE(b.completed_at, b.created_at), 'DD Mon') AS completed_date
       FROM bookings b
       WHERE b.status = 'completed'
+        AND b.collected_at IS NULL
       ORDER BY COALESCE(b.completed_at, b.created_at) DESC
       LIMIT 100
     `);
@@ -121,6 +122,27 @@ router.get('/ready', async (_req, res) => {
   } catch (err) {
     console.error('Error fetching ready-for-collection bookings:', err);
     res.status(500).json({ error: 'Failed to fetch ready-for-collection bookings' });
+  }
+});
+
+router.put('/ready/:id/collect', async (req, res) => {
+  const id = parseInt(req.params.id, 10);
+  if (Number.isNaN(id)) return res.status(400).json({ error: 'Invalid booking ID' });
+  try {
+    const { rows } = await pool.query(
+      `UPDATE bookings
+       SET collected_at = NOW()
+       WHERE id = $1
+         AND status = 'completed'
+         AND collected_at IS NULL
+       RETURNING id`,
+      [id]
+    );
+    if (rows.length === 0) return res.status(404).json({ error: 'Collection ticket not found' });
+    return res.json({ message: 'Marked as collected' });
+  } catch (err) {
+    console.error('Error marking print as collected:', err);
+    return res.status(500).json({ error: 'Failed to mark as collected' });
   }
 });
 

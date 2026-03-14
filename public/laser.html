@@ -145,9 +145,9 @@
     <label class="form-label">File (optional)</label>
     <div class="file-upload">
       <div class="file-upload-label" id="mFileLabel"><span>&#128193;</span><span id="mFileName">Choose a file...</span></div>
-      <input type="file" id="mFileInput" accept=".dxf,.svg,.ai,.pdf,.3mf,.stl" onchange="updateModalFile()">
+      <input type="file" id="mFileInput" accept=".dxf" onchange="updateModalFile()">
     </div>
-    <div class="file-hint">.dxf, .svg, .ai, .pdf, .3mf, .stl accepted</div>
+    <div class="file-hint">.dxf files only</div>
     <div class="modal-actions">
       <button class="modal-btn primary" id="mBookBtn" onclick="confirmBooking()">Book Slot</button>
       <button class="modal-btn secondary" onclick="closeModal()">Cancel</button>
