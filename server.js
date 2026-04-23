@@ -32,6 +32,7 @@ app.use('/api', apiLimiter);
 app.use(express.static(path.join(__dirname, 'public'), {
   etag: true,
   maxAge: process.env.NODE_ENV === 'production' ? '1d' : 0,
+  index: false,
   setHeaders: (res, filePath) => {
     if (filePath.endsWith('.html')) {
       res.setHeader('Cache-Control', 'no-cache');
@@ -48,7 +49,7 @@ app.use('/api/admin', adminRouter);
 // End of term T1 2026 — all student-facing booking pages show the closure notice.
 // Restore original route handlers at start of next term.
 const endOfTermPage = (req, res) => {
-  res.sendFile(path.join(__dirname, 'public', 'end-of-term.html'));
+  res.sendFile(path.join(__dirname, 'public', 'end-of-term-notice.html'));
 };
 
 app.get('/', endOfTermPage);
