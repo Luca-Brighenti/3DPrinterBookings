@@ -45,21 +45,16 @@ app.use('/api/slots', slotsRouter);
 app.use('/api/cnc', cncRouter);
 app.use('/api/admin', adminRouter);
 
-app.get('/', (req, res) => {
-  res.sendFile(path.join(__dirname, 'public', 'index.html'));
-});
+// End of term T1 2026 — all student-facing booking pages show the closure notice.
+// Restore original route handlers at start of next term.
+const endOfTermPage = (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'end-of-term.html'));
+};
 
-app.get('/laser', (req, res) => {
-  res.sendFile(path.join(__dirname, 'public', 'laser.html'));
-});
-
-app.get('/windtunnel', (req, res) => {
-  res.sendFile(path.join(__dirname, 'public', 'windtunnel.html'));
-});
-
-app.get('/cnc', (req, res) => {
-  res.sendFile(path.join(__dirname, 'public', 'cnc.html'));
-});
+app.get('/', endOfTermPage);
+app.get('/laser', endOfTermPage);
+app.get('/windtunnel', endOfTermPage);
+app.get('/cnc', endOfTermPage);
 
 app.get('/admin', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'admin.html'));
